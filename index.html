@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Question Editor</title>
+    <!-- Link to external CSS file -->
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="editor-container">
+        <h1>Quiz Question Editor</h1>
+
+        <h2>Question Set Details</h2>
+        <div class="metadata">
+            <div class="form-group">
+                <label for="subject" class="required"><i class="fas fa-book"></i> Subject:</label>
+                <input type="text" id="subject" list="subjects" placeholder="e.g., Math">
+                <datalist id="subjects">
+                    <option value="Math">Math</option>
+                    <option value="Grammar">Grammar</option>
+                    <option value="Science">Science</option>
+                    <option value="History">History</option>
+                    <option value="General">General</option>
+                </datalist>
+            </div>
+
+            <div class="form-group">
+                <label for="grade" class="required"><i class="fas fa-graduation-cap"></i> Grade Level:</label>
+                <input type="text" id="grade" list="grades" placeholder="e.g., 5">
+                <datalist id="grades">
+                    <option value="K">K</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                    <option value="9">9</option>
+                    <option value="10">10</option>
+                    <option value="11">11</option>
+                    <option value="12">12</option>
+                    <option value="Unknown">Unknown</option>
+                </datalist>
+            </div>
+
+            <div class="form-group">
+                <label for="setName"><i class="fas fa-tags"></i> Set Name:</label>
+                <input type="text" id="setName" placeholder="e.g., Facts-of-7">
+            </div>
+        </div>
+
+        <h2>Questions</h2>
+        <div id="questionsContainer">
+            <!-- Question blocks will be added here by JavaScript -->
+        </div>
+
+        <button type="button" id="addQuestionBtn"><i class="fas fa-plus"></i> Add Question</button>
+
+        <div class="quiz-preview-section">
+            <h2>Quiz App Preview</h2>
+            <div class="preview-controls">
+                <label for="previewQuestionSelect"><i class="fas fa-eye"></i> Preview Question:</label>
+                <select id="previewQuestionSelect">
+                    <!-- Options populated by JS -->
+                </select>
+            </div>
+            <div class="quiz-preview-area" id="questionPreviewArea">
+                <!-- Question preview will appear here -->
+                <p style="text-align: center; color: var(--text-light);">Select a question above to see how it looks in the quiz app.</p>
+            </div>
+        </div>
+
+        <button type="button" id="saveQuestionsBtn" disabled><i class="fas fa-file-download"></i> Save All Questions</button>
+        <button type="button" id="newQuizBtn" class="secondary-button"><i class="fas fa-file"></i> New Quiz</button>
+        <button type="button" id="loadFileBtn"><i class="fas fa-upload"></i> Load/Compile Quizzes</button>
+        <input type="file" id="hiddenFileInput" accept=".json" multiple style="display: none;">
+    </div>
+
+    <!-- Link to external JavaScript files -->
+    <!-- Order matters: dependencies should be loaded first -->
+    <script src="js/dataManager.js"></script>
+    <script src="js/uiRenderer.js"></script>
+    <script src="js/validation.js"></script>
+    <script src="js/previewRenderer.js"></script>
+    <script src="js/editor.js"></script>
+</body>
+</html>
