@@ -1,0 +1,602 @@
+/* --- Quiz Me CSS Variables --- */
+:root {
+    --primary: #4361ee;
+    --primary-light: #4cc9f0;
+    --secondary: #3a0ca3;
+    --accent: #f72585;
+    --background: #f8f9fa;
+    --card-bg: #ffffff;
+    --text: #2b2d42;
+    --text-light: #8d99ae;
+    --correct: #4cc9f0;
+    --incorrect: #f72585;
+    --warning: #ff9e00;
+    --danger: #ef233c;
+    --success: #38b000;
+    --card-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* --- General Styles from Quiz Me --- */
+body {
+    font-family: 'Poppins', sans-serif;
+    /* Using Poppins from Quiz Me */
+    line-height: 1.6;
+    color: var(--text);
+    background: linear-gradient(135deg, #f5f7fa 0%, #e9ecef 100%);
+    margin: 0;
+    padding: 20px;
+    min-height: 100vh;
+}
+
+.editor-container {
+    max-width: 900px;
+    /* Slightly wider container */
+    margin: 0 auto;
+    background: var(--card-bg);
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 30px;
+}
+
+h1 {
+    color: var(--secondary);
+    margin-bottom: 20px;
+    font-size: 2.5rem;
+    font-weight: 700;
+    background: linear-gradient(90deg, var(--primary), var(--accent));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    text-align: center;
+}
+
+h2 {
+    /* Add styling for potential section headers */
+    color: var(--secondary);
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 1.8rem;
+    position: relative;
+    padding-bottom: 10px;
+}
+
+h2::after {
+    /* Add underline style */
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 50px;
+    height: 3px;
+    background: var(--accent);
+}
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: var(--text);
+}
+
+/* Style for required fields */
+label.required::after {
+    content: ' *';
+    color: var(--danger);
+    font-weight: bold;
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid #e9ecef;
+    /* Use Quiz Me border style */
+    border-radius: 8px;
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+    background-color: var(--background);
+    transition: var(--transition);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+}
+
+/* Add a style for invalid fields */
+input.invalid,
+textarea.invalid,
+select.invalid {
+    border-color: var(--danger) !important;
+    box-shadow: 0 0 0 3px rgba(239, 35, 60, 0.2) !important;
+}
+
+
+button {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: var(--transition);
+    margin: 5px 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+button:hover {
+    background: var(--secondary);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(58, 12, 163, 0.3);
+}
+
+button:disabled {
+    background: #adb5bd;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Specific styles from the editor */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.options-container {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    /* Match background */
+    border: 1px solid #e9ecef;
+    /* Subtle border */
+    border-radius: 8px;
+}
+
+.option-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.option-item input[type="text"] {
+    flex-grow: 1;
+    /* Allow input to take available space */
+}
+
+.option-item button {
+    flex-shrink: 0;
+    padding: 5px 10px;
+    /* Smaller padding for +/- buttons */
+    background: var(--danger);
+    /* Danger color for minus */
+}
+
+.option-item button:hover {
+    background: #d00000;
+    /* Darker red on hover */
+}
+
+
+.answer-section {
+    margin: 20px 0;
+    /* More space */
+    padding: 15px;
+    background: #e8f4fc;
+    /* Light blue background */
+    border-radius: 8px;
+}
+
+.answer-options div {
+    /* Style for radio/checkbox containers */
+    margin-bottom: 8px;
+    /* Fix alignment issue by setting display flex and vertical align */
+    display: flex;
+    align-items: center;
+}
+
+.answer-options input[type="radio"],
+.answer-options input[type="checkbox"] {
+    width: auto;
+    /* Don't force full width */
+    margin-right: 8px;
+    vertical-align: middle;
+    /* Align with label */
+    flex-shrink: 0;
+    /* Prevent shrinking */
+    margin-top: 0;
+    /* Reset default top margin */
+}
+
+.answer-options label {
+    display: inline-block;
+    /* Allow label to sit next to input */
+    margin-bottom: 0;
+    font-weight: normal;
+    vertical-align: middle;
+    cursor: pointer;
+    /* Indicate it's clickable */
+    flex-grow: 1;
+    /* Allow label to take space */
+}
+
+.question-block {
+    border: 1px solid #dee2e6;
+    /* Lighter border */
+    padding: 20px;
+    margin-bottom: 30px;
+    border-radius: 10px;
+    background: var(--card-bg);
+    /* White background */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    /* Subtle shadow */
+}
+
+.metadata {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    /* Responsive grid */
+    gap: 20px;
+    margin-bottom: 30px;
+    padding: 20px;
+    background: #f0f4f8;
+    /* Light background for metadata */
+    border-radius: 10px;
+}
+
+.question-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e9ecef;
+    /* Separator */
+}
+
+.question-header button {
+    margin: 0;
+    /* Remove extra margin from buttons in header */
+    padding: 5px 10px;
+    font-size: 0.9rem;
+}
+
+.question-number {
+    font-weight: 600;
+    color: var(--primary);
+    font-size: 1.2rem;
+}
+
+.order-input {
+    width: 60px;
+    margin-left: 15px;
+    display: inline-block;
+    /* Ensure it sits next to text */
+    vertical-align: middle;
+    /* Align vertically */
+}
+
+.order-options div {
+    margin-bottom: 10px;
+    /* Space out ordering items */
+    background: var(--background);
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+    /* Flexbox for alignment */
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.order-options div span {
+    flex-grow: 1;
+    /* Allow text to take space */
+}
+
+.order-options div input[type="number"] {
+    width: 60px;
+    padding: 4px 8px;
+    display: inline-block;
+    margin-left: 8px;
+    /* Space between text and number input */
+    flex-shrink: 0;
+    /* Prevent shrinking */
+}
+
+
+/* --- Quiz Preview Styles (adapted from Quiz Me app) --- */
+.quiz-preview-section {
+    margin-top: 30px;
+    padding: 20px;
+    border: 2px dashed var(--primary-light);
+    border-radius: 15px;
+    background: var(--card-bg);
+    box-shadow: var(--card-shadow);
+}
+
+.quiz-preview-section h2 {
+    /* Override editor h2 for preview header */
+    color: var(--secondary);
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 1.5rem;
+    /* Slightly smaller than editor h2 */
+    position: relative;
+    padding-bottom: 10px;
+}
+
+.quiz-preview-section h2::after {
+    /* Override editor h2 underline */
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 40px;
+    height: 3px;
+    background: var(--primary);
+    /* Use primary color */
+}
+
+.preview-controls {
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+    /* Allow wrapping on small screens */
+}
+
+.preview-controls label {
+    margin-bottom: 0;
+    font-weight: normal;
+    flex-shrink: 0;
+    /* Prevent shrinking */
+}
+
+.preview-controls select {
+    width: auto;
+    /* Allow select to size based on content */
+    min-width: 150px;
+    flex-grow: 0;
+    /* Prevent growing */
+}
+
+
+.quiz-preview-area {
+    /* This is the actual container for the rendered question */
+    position: relative; /* Added for potential absolute positioning within preview */
+}
+
+
+.quiz-preview-area .question-area {
+    display: flex;
+    align-items: flex-start;
+    /* Align items to the top */
+    gap: 10px;
+    margin-bottom: 25px;
+}
+
+.quiz-preview-area .question {
+    font-weight: 600;
+    font-size: 1.2rem;
+    line-height: 1.5;
+    color: var(--secondary);
+    flex-grow: 1;
+}
+
+.quiz-preview-area .instructions {
+    font-style: italic;
+    color: var(--text-light);
+    margin-bottom: 20px;
+    text-align: center;
+    display: block;
+    /* Always show instructions in preview */
+}
+
+.quiz-preview-area .hint-icon {
+    position: relative;
+    cursor: help;
+    color: var(--text-light);
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    display: inline-block;
+    /* Show if hint is present */
+}
+
+.quiz-preview-area .hint-icon:hover {
+    color: var(--primary);
+}
+
+/* Tooltip styles for hint icon */
+.quiz-preview-area .hint-icon::before,
+.quiz-preview-area .hint-icon::after {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    z-index: 10;
+}
+
+.quiz-preview-area .hint-icon:hover::before,
+.quiz-preview-area .hint-icon:hover::after {
+    visibility: visible;
+    opacity: 1;
+}
+
+.quiz-preview-area .hint-icon::before {
+    content: attr(data-hint);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-10px);
+    padding: 8px 12px;
+    background-color: var(--secondary);
+    color: white;
+    border-radius: 6px;
+    white-space: nowrap;
+    font-size: 0.9rem;
+    font-style: normal;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.quiz-preview-area .hint-icon::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    border-width: 5px;
+    border-style: solid;
+    border-color: var(--secondary) transparent transparent transparent;
+}
+
+
+.quiz-preview-area .options {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 25px;
+    /* Remove drag-over border style from preview options container */
+    border: none !important;
+    background-color: transparent !important;
+}
+
+.quiz-preview-area .option {
+    padding: 12px 15px;
+    background: var(--background);
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    cursor: default;
+    /* Default cursor in preview */
+    transition: none;
+    /* Remove transition */
+    font-weight: 500;
+    user-select: none;
+}
+
+/* Remove hover effects from preview options */
+.quiz-preview-area .option:hover {
+    transform: none;
+    box-shadow: none;
+    border-color: #e9ecef;
+}
+
+/* Style for fill-in input in preview */
+.quiz-preview-area .fill-in-input {
+    /* Inherit editor input styles, but adjust background */
+    background-color: var(--card-bg);
+    /* White background */
+    cursor: default;
+}
+
+.quiz-preview-area .fill-in-input:focus {
+    border-color: #e9ecef;
+    /* Remove focus border */
+    box-shadow: none;
+}
+
+/* Styles to show correct/incorrect state in preview */
+.quiz-preview-area .option.correct {
+    background: var(--correct);
+    color: white;
+    border-color: var(--correct);
+    /* Remove box-shadow from preview correct options */
+    box-shadow: none;
+}
+
+/* In preview, show incorrect user selections if applicable (e.g., multi-select) */
+.quiz-preview-area .option.incorrect {
+    background: var(--incorrect);
+    color: white;
+    border-color: var(--incorrect);
+    box-shadow: none;
+}
+
+/* In preview, show user's selected options (if applicable, like multi-select) */
+.quiz-preview-area .option.selected {
+    background: var(--primary-light);
+    /* Use a lighter color for selection in preview */
+    color: var(--text);
+    /* Keep text color */
+    border-color: var(--primary-light);
+    box-shadow: none;
+}
+
+
+/* Styles for displaying correct answer for fill-in in preview */
+.quiz-preview-area .correct-answer-feedback {
+    font-weight: bold;
+    color: var(--success);
+    margin-top: 10px;
+    text-align: center;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .editor-container {
+        padding: 20px;
+    }
+
+    .metadata {
+        grid-template-columns: 1fr;
+        /* Stack metadata on smaller screens */
+        gap: 15px;
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        padding: 10px;
+    }
+
+    h1 {
+        font-size: 2rem;
+    }
+
+    .question-block,
+    .metadata,
+    .options-container,
+    .answer-section,
+    .quiz-preview-section {
+        padding: 15px;
+    }
+
+    .question-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .quiz-preview-area .hint-icon::before {
+        left: 0;
+        transform: translateX(0%) translateY(-10px);
+        white-space: normal;
+        width: 150px;
+    }
+
+    .quiz-preview-area .hint-icon::after {
+        left: 10px;
+        transform: translateX(-50%) translateY(-4px);
+    }
+
+    .preview-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .preview-controls select {
+        width: 100%;
+    }
+}
