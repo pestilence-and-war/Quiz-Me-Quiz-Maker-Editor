@@ -1,0 +1,6 @@
+flask
+python-dotenv
+google-generativeai
+waitress
+flask-cors
+PyMuPDF
