@@ -147,7 +147,7 @@ def generate_questions():
     
     if not is_dev_user:
         # Calculate usage for the current month
-        start_of_month = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        start_of_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         usage_count = UsageLog.query.filter(
             UsageLog.user_id == user.id,
             UsageLog.timestamp >= start_of_month
