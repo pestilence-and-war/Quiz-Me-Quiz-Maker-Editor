@@ -4,3 +4,6 @@ google-generativeai
 waitress
 flask-cors
 PyMuPDF
+flask-sqlalchemy
+flask-JWT-Extended
+flask-Bcrypt
