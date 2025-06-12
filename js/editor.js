@@ -788,6 +788,25 @@ function bindEventListeners() {
         saveEditorStateToLocalStorage();
     });
 
+    // --- AI MODAL LISTENERS ---
+    if (aiGenerateBtn) {
+    aiGenerateBtn.addEventListener('click', openAiModal);
+    }
+    if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', closeAiModal);
+    }
+    if (aiModal) {
+        // Close modal if user clicks on the dark overlay
+        aiModal.addEventListener('click', (event) => {
+            if (event.target === aiModal) {
+                closeAiModal();
+            }
+        });
+    }
+    if (generateQuestionsBtn) {
+        generateQuestionsBtn.addEventListener('click', handleGenerateQuestions);
+    }
+
 }
 
 
