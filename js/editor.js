@@ -7,6 +7,20 @@
 // Get references to key DOM elements from UIRenderer (which exposes them)
 const DOM = UIRenderer.DOM;
 
+// --- AI GENERATION MODAL ELEMENTS ---
+const aiGenerateBtn = document.getElementById('aiGenerateBtn');
+const aiModal = document.getElementById('aiModal');
+const closeModalBtn = document.getElementById('closeModalBtn');
+const aiGenerationForm = document.getElementById('aiGenerationForm');
+const generateQuestionsBtn = document.getElementById('generateQuestionsBtn');
+const aiLoadingSpinner = document.getElementById('aiLoadingSpinner');
+const aiDocInput = document.getElementById('aiDocInput');
+// Add other AI form inputs if needed for validation, e.g.,
+const aiSubject = document.getElementById('aiSubject');
+const aiGrade = document.getElementById('aiGrade');
+const aiNumQuestions = document.getElementById('aiNumQuestions');
+const aiNotes = document.getElementById('aiNotes');
+
 // --------------- HELPER FUNCTIONS ---------------
 
 // Generates the filename based on metadata inputs
@@ -480,6 +494,99 @@ function updateQuestionPreview(questionId = null) {
     } else {
         console.error(`Could not find question data with ID: ${selectedBlockId} for preview.`);
         previewArea.innerHTML = '<p style="text-align: center; color: var(--text-light);">Error finding question data for preview.</p>';
+    }
+}
+
+// --- AI GENERATION FUNCTIONS ---
+
+function openAiModal() {
+    // Reset the form in case it was used before
+    aiDocInput.value = ''; 
+    aiGenerationForm.style.display = 'block';
+    aiLoadingSpinner.style.display = 'none';
+    generateQuestionsBtn.disabled = false;
+    aiModal.classList.add('active');
+}
+
+function closeAiModal() {
+    aiModal.classList.remove('active');
+}
+
+async function handleGenerateQuestions() {
+    // 1. Validate input
+    if (aiDocInput.files.length === 0) {
+        alert('Please select a PDF or TXT file to upload.');
+        return;
+    }
+
+    // 2. Prepare for API call
+    generateQuestionsBtn.disabled = true;
+    aiGenerationForm.style.display = 'none';
+    aiLoadingSpinner.style.display = 'block';
+
+    // 3. Collect data into FormData
+    const formData = new FormData();
+    formData.append('document', aiDocInput.files[0]);
+    formData.append('subject', aiSubject.value);
+    formData.append('grade', aiGrade.value);
+    formData.append('num_questions', aiNumQuestions.value);
+    formData.append('notes', aiNotes.value);
+    
+    // Collect selected checkbox values
+    const selectedTypes = Array.from(document.querySelectorAll('input[name="aiQuestionType"]:checked'))
+        .map(cb => cb.value)
+        .join(', ');
+    formData.append('question_types', selectedTypes);
+
+    // 4. Make the fetch call to the backend
+    try {
+        const response = await fetch('http://localhost:5000/api/generate-questions', {
+            method: 'POST',
+            body: formData,
+            // For file uploads with FormData, DO NOT set the 'Content-Type' header.
+            // The browser will set it automatically with the correct boundary.
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+            // Handle backend errors (e.g., bad file, AI error)
+            throw new Error(result.message || 'An unknown error occurred.');
+        }
+
+        // 5. Process successful response (append questions)
+        const newQuestions = result.questions;
+        if (!newQuestions || !Array.isArray(newQuestions) || newQuestions.length === 0) {
+            throw new Error('The AI did not return any questions.');
+        }
+
+        newQuestions.forEach(q => {
+            // Assign a new, unique frontend ID to each question from the AI
+            const newQuestionId = DataManager.generateNewId();
+            const questionData = { ...q, id: newQuestionId };
+            
+            // Use existing functions to add the data and render the UI
+            DataManager.addQuestion(questionData);
+            const newBlock = UIRenderer.renderQuestionBlock(questionData);
+            UIRenderer.updateRemoveOptionButtons(newBlock);
+        });
+        
+        // Refresh the entire UI state
+        updateSaveButtonState();
+        updatePreviewSelectDropdown();
+        saveEditorStateToLocalStorage(); // Save the new appended state
+        
+        alert(`Successfully added ${newQuestions.length} new question(s)!`);
+        closeAiModal();
+
+    } catch (error) {
+        console.error('Error generating questions:', error);
+        alert(`Failed to generate questions: ${error.message}`);
+    } finally {
+        // 6. Reset the modal UI regardless of success or failure
+        generateQuestionsBtn.disabled = false;
+        aiGenerationForm.style.display = 'block';
+        aiLoadingSpinner.style.display = 'none';
     }
 }
 
