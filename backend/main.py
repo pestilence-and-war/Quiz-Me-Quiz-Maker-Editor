@@ -10,6 +10,7 @@ from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, JWTManager
+from google.genai import types
 
 # Import the Google GenAI library
 from google import genai
@@ -135,31 +136,117 @@ Each object in the array must conform to one of the following structures based o
 # --- API Endpoints ---
 
 @app.route('/api/generate-questions', methods=['POST'])
-@jwt_required() # This protects the endpoint
+# @jwt_required() # Temporarily disabled for testing
 def generate_questions():
-    # --- 1. Get User and Check Usage ---
-    current_user_identity = get_jwt_identity()
-    user_id = current_user_identity['id']
-    user = User.query.get(user_id)
-    
-    # *** HERE IS THE USAGE LIMITING LOGIC ***
-    is_dev_user = os.getenv("DEV_MODE_USER_EMAIL") == user.email
-    
-    if not is_dev_user:
-        # Calculate usage for the current month
-        start_of_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        usage_count = UsageLog.query.filter(
-            UsageLog.user_id == user.id,
-            UsageLog.timestamp >= start_of_month
-        ).count()
-        
-        limit = TIER_LIMITS.get(user.subscription_tier, 0)
-        
-        if usage_count >= limit:
-            return jsonify({"success": False, "message": "You have reached your monthly generation limit."}), 429 # Too Many Requests
+    # --- TEMPORARY: Bypassing user checks for testing the generation pipeline ---
+    print("WARNING: generate-questions endpoint is running without authentication for testing.")
 
-    # --- 2. Load Your Master API Key ---
-    api_key = os.getenv("GOOGLE_API_KEY") # This is now YOUR key, not the user's
+    # --- Load Your Master API Key ---
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        return jsonify({"message": "Server configuration error: GOOGLE_API_KEY not found in .env"}), 500
+
+    # --- Extract Data from Request ---
+    try:
+        if 'document' not in request.files:
+            return jsonify({"success": False, "message": "No document file provided."}), 400
+        
+        file = request.files['document']
+        if file.filename == '':
+            return jsonify({"success": False, "message": "No selected file."}), 400
+
+        subject = request.form.get('subject', 'General')
+        grade = request.form.get('grade', 'Unspecified')
+        notes = request.form.get('notes', 'None')
+        num_questions = request.form.get('num_questions', '5')
+        question_types = request.form.get('question_types', 'single, multi-select')
+    except Exception as e:
+        app.logger.error(f"Error parsing form data: {e}")
+        return jsonify({"success": False, "message": "Invalid request data."}), 400
+
+    # --- Extract Text from Document ---
+    try:
+        file_bytes = file.read()
+        extracted_text = ""
+        if file.filename.lower().endswith('.pdf'):
+            with fitz.open(stream=file_bytes, filetype="pdf") as doc:
+                for page in doc:
+                    extracted_text += page.get_text()
+        elif file.filename.lower().endswith('.txt'):
+            extracted_text = file_bytes.decode('utf-8', errors='ignore')
+        else:
+            return jsonify({"success": False, "message": "Unsupported file type. Please use PDF or TXT."}), 400
+        
+        if not extracted_text.strip():
+            return jsonify({"success": False, "message": "Could not extract any text from the document."}), 400
+    except Exception as e:
+        app.logger.error(f"Error extracting text from file: {e}")
+        return jsonify({"success": False, "message": "Failed to process the uploaded document."}), 500
+
+    # --- Construct Prompts ---
+    user_prompt = f"""Please generate {num_questions} questions from the following document.
+- Subject: {subject}
+- Grade Level: {grade}
+- Desired Question Types: {question_types}
+- Additional Teacher Notes: {notes}
+
+Source Text:
+---
+{extracted_text[:15000]}
+"""
+
+    try:
+        client = genai.Client(api_key=api_key)
+        
+        # Define the generation config using the types.GenerateContentConfig class
+        generation_config = types.GenerateContentConfig(
+            temperature=0.7,
+            max_output_tokens=8192,
+            response_mime_type="application/json"
+        )
+        
+        # Call generate_content and pass the config object to the 'config' parameter
+        response = client.models.generate_content(
+            model='models/gemini-1.5-flash-latest', # Change to your preferred model
+            contents=[SYSTEM_PROMPT, user_prompt],
+            config=generation_config # Pass the object to the 'config' parameter
+        )
+        
+        generated_json = json.loads(response.text)
+        
+        return jsonify({"success": True, "questions": generated_json})
+        
+    except json.JSONDecodeError:
+        app.logger.error(f"Failed to decode JSON from Gemini response: {response.text}")
+        return jsonify({"success": False, "message": "The AI returned an invalid JSON format. Please try again."}), 500
+    except Exception as e:
+        app.logger.error(f"An error occurred with the Google API call: {e}")
+        return jsonify({"success": False, "message": f"An error occurred while generating questions: {str(e)}"}), 500
+# @jwt_required() # This protects the endpoint
+# def generate_questions():
+#     # --- 1. Get User and Check Usage ---
+#     current_user_identity = get_jwt_identity()
+#     user_id = current_user_identity['id']
+#     user = User.query.get(user_id)
+    
+#     # *** HERE IS THE USAGE LIMITING LOGIC ***
+#     is_dev_user = os.getenv("DEV_MODE_USER_EMAIL") == user.email
+    
+#     if not is_dev_user:
+#         # Calculate usage for the current month
+#         start_of_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+#         usage_count = UsageLog.query.filter(
+#             UsageLog.user_id == user.id,
+#             UsageLog.timestamp >= start_of_month
+#         ).count()
+        
+#         limit = TIER_LIMITS.get(user.subscription_tier, 0)
+        
+#         if usage_count >= limit:
+#             return jsonify({"success": False, "message": "You have reached your monthly generation limit."}), 429 # Too Many Requests
+
+#     # --- 2. Load Your Master API Key ---
+#     api_key = os.getenv("GOOGLE_API_KEY") # This is now YOUR key, not the user's
     if not api_key:
         return jsonify({"message": "Server configuration error: API key not found."}), 500
 
