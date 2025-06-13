@@ -1,0 +1,9 @@
+flask
+python-dotenv
+google-genai
+waitress
+flask-cors
+PyMuPDF
+flask-sqlalchemy
+flask-JWT-Extended
+flask-Bcrypt

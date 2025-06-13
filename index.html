@@ -77,9 +77,62 @@
 
         <button type="button" id="saveQuestionsBtn" disabled><i class="fas fa-file-download"></i> Save All Questions</button>
         <button type="button" id="newQuizBtn" class="secondary-button"><i class="fas fa-file"></i> New Quiz</button>
+        <button type="button" id="aiGenerateBtn"><i class="fas fa-magic"></i> Generate with AI</button>
         <button type="button" id="loadFileBtn"><i class="fas fa-upload"></i> Load/Compile Quizzes</button>
         <input type="file" id="hiddenFileInput" accept=".json" multiple style="display: none;">
     </div>
+
+<div id="aiModal" class="ai-modal-overlay">
+    <div class="ai-modal-content">
+        <span id="closeModalBtn" class="ai-modal-close">×</span>
+        <h2>AI Question Generator</h2>
+
+        <!-- Section for API Key (if we implement user-provided keys) -->
+        <!-- For the monetization model, we will skip this and use user accounts -->
+        <!-- We will build the Login/Register modal next -->
+        
+        <p>Upload a PDF or TXT file and specify your requirements. The AI will generate questions and add them to your current quiz.</p>
+
+        <fieldset id="aiGenerationForm">
+            <div class="form-group">
+                <label for="aiDocInput" class="required"><i class="fas fa-file-alt"></i> Learning Material:</label>
+                <input type="file" id="aiDocInput" accept=".pdf,.txt" required>
+            </div>
+            <div class="form-group">
+                <label for="aiSubject"><i class="fas fa-book"></i> Subject:</label>
+                <input type="text" id="aiSubject" placeholder="e.g., Biology">
+            </div>
+            <div class="form-group">
+                <label for="aiGrade"><i class="fas fa-graduation-cap"></i> Grade Level:</label>
+                <input type="text" id="aiGrade" placeholder="e.g., 9">
+            </div>
+            <div class="form-group">
+                <label for="aiNumQuestions"><i class="fas fa-list-ol"></i> Number of Questions to Generate:</label>
+                <input type="number" id="aiNumQuestions" value="5" min="1" max="20">
+            </div>
+            <div class="form-group">
+                <label><i class="fas fa-tasks"></i> Desired Question Types:</label>
+                <div class="checkbox-group">
+                    <label><input type="checkbox" name="aiQuestionType" value="single" checked> Single Answer</label>
+                    <label><input type="checkbox" name="aiQuestionType" value="multi-select" checked> Multi-Select</label>
+                    <label><input type="checkbox" name="aiQuestionType" value="fill-in"> Fill in the Blank</label>
+                    <label><input type="checkbox" name="aiQuestionType" value="ordering"> Ordering</label>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="aiNotes"><i class="fas fa-sticky-note"></i> Additional Notes for AI:</label>
+                <textarea id="aiNotes" rows="3" placeholder="e.g., Focus on key definitions."></textarea>
+            </div>
+
+            <button type="button" id="generateQuestionsBtn"><i class="fas fa-cogs"></i> Generate Questions</button>
+        </fieldset>
+
+        <div id="aiLoadingSpinner" class="spinner-container" style="display: none;">
+            <div class="spinner"></div>
+            <p>Generating questions... this may take a moment.</p>
+        </div>
+    </div>
+</div>
 
     <!-- Link to external JavaScript files -->
     <!-- Order matters: dependencies should be loaded first -->
