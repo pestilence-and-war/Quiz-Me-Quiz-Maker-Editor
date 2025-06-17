@@ -45,51 +45,90 @@ function updateLoginStateUI() {
 }
 
 async function handleLogin() {
+    console.log("Attempting login...");
     authError.style.display = 'none';
     const email = authEmail.value;
     const password = authPassword.value;
+
     if (!email || !password) {
         authError.textContent = 'Email and password are required.';
         authError.style.display = 'block';
+        console.error("Login failed: Missing email or password.");
         return;
     }
+
     try {
         const response = await fetch(`${API_BASE_URL}/api/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password }),
         });
+
+        console.log("Login response status:", response.status);
         const data = await response.json();
-        if (!response.ok) throw new Error(data.message || 'Login failed');
-        localStorage.setItem('jwt_token', data.access_token);
-        authModal.classList.remove('active');
-        updateLoginStateUI();
-        openAiModal(); // Proceed to the AI modal after successful login
+        console.log("Login response data:", data);
+
+        if (!response.ok) {
+            throw new Error(data.message || `Login failed with status: ${response.status}`);
+        }
+
+        // --- CRUCIAL PART ---
+        if (data.access_token) {
+            console.log("Access token found in response. Saving to localStorage...");
+            localStorage.setItem('jwt_token', data.access_token);
+            console.log("Token saved. Current value:", localStorage.getItem('jwt_token'));
+            
+            // Now, update UI and proceed
+            authModal.classList.remove('active');
+            updateLoginStateUI();
+            openAiModal(); // This will now succeed because isLoggedIn() will be true
+        } else {
+            // This case handles if the server sends a 200 OK but no token, which is unlikely but good to guard against.
+            throw new Error("Login successful, but no access token was provided by the server.");
+        }
+        
     } catch (error) {
+        console.error("Login fetch/processing error:", error);
         authError.textContent = error.message;
         authError.style.display = 'block';
     }
 }
 
 async function handleRegister() {
+    console.log("Attempting registration...");
     authError.style.display = 'none';
     const email = authEmail.value;
     const password = authPassword.value;
+
     if (!email || password.length < 6) {
         authError.textContent = 'Please enter a valid email and a password of at least 6 characters.';
         authError.style.display = 'block';
+        console.error("Registration failed: Invalid email or password.");
         return;
     }
+
     try {
         const response = await fetch(`${API_BASE_URL}/api/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password }),
         });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || 'Registration failed');
+
+        console.log("Registration response status:", response.status);
+        // ALWAYS parse the JSON, even for errors, to get the message
+        const data = await response.json(); 
+        console.log("Registration response data:", data);
+
+        // NOW check if the response was successful
+        if (!response.ok) {
+            // Throw an error using the message from the parsed JSON
+            throw new Error(data.message || `Registration failed with status: ${response.status}`);
+        }
+        
         alert('Registration successful! Please log in to continue.');
+        
     } catch (error) {
+        console.error("Registration fetch/processing error:", error);
         authError.textContent = error.message;
         authError.style.display = 'block';
     }

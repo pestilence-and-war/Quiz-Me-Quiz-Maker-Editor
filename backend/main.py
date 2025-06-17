@@ -7,7 +7,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from waitress import serve
 from dotenv import load_dotenv, set_key
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # --- Imports for DB and Auth ---
 from flask_sqlalchemy import SQLAlchemy
@@ -31,9 +31,11 @@ app.logger.setLevel(logging.INFO)
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "a-default-fallback-secret-key-for-dev")
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///site.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
+
 
 # Enable CORS for your frontend
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": "*", "headers": ["Content-Type", "Authorization"]}}, supports_credentials=True)
 
 # --- Initialize Extensions ---
 db = SQLAlchemy(app)
