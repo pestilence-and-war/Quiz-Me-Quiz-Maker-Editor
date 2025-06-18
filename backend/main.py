@@ -126,7 +126,8 @@ def generate_questions():
         return jsonify(message="Missing or invalid token"), 401
 
     user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    # --- FIX 1: Updated to modern SQLAlchemy syntax to remove LegacyAPIWarning ---
+    user = db.session.get(User, user_id)
     if not user:
         return jsonify({"message": "User not found"}), 404
     app.logger.info(f"Request token VERIFIED for user: {user.email} (ID: {user.id})")
@@ -162,44 +163,43 @@ def generate_questions():
         file_bytes = file.read()
         filename_lower = file.filename.lower()
         
-        # This list will be populated differently depending on file type
         contents_for_api = []
 
         if filename_lower.endswith('.pptx'):
             app.logger.info(f"Processing PPTX file: {file.filename} using hybrid image/text model.")
-            # Use io.BytesIO to treat the byte stream like a file, avoiding saving to disk
             pptx_stream_for_text = io.BytesIO(file_bytes)
             pptx_stream_for_images = io.BytesIO(file_bytes)
 
             prs = Presentation(pptx_stream_for_text)
             doc_for_images = fitz.open(stream=pptx_stream_for_images, filetype="pptx")
             
-            # For multimodal requests, the system prompt and instructions go first in the list
             initial_prompt = f"{SYSTEM_PROMPT}\n\nPlease generate {num_questions} questions based on the content of the following presentation slides. Each slide is provided as both an image and its extracted text. Use both to understand the full context.\n- Subject: {subject}\n- Grade Level: {grade}\n- Desired Question Types: {question_types}\n- Additional Teacher Notes: {notes}\n---"
             contents_for_api.append(initial_prompt)
 
-            # Process each slide for its image and text
             for i, slide in enumerate(prs.slides):
-                # Part 1: The Image
-                page_for_image = doc_for_images.load_page(i)
-                pix = page_for_image.get_pixmap(dpi=150)
-                img_bytes = pix.tobytes("png")
-                image_part = types.Part.from_bytes(data=img_bytes, mime_type='image/png')
-                contents_for_api.append(image_part)
+                # --- FIX 2: Added a guard clause to prevent crash if page counts differ ---
+                if i < doc_for_images.page_count:
+                    # Part 1: The Image
+                    page_for_image = doc_for_images.load_page(i)
+                    pix = page_for_image.get_pixmap(dpi=150)
+                    img_bytes = pix.tobytes("png")
+                    image_part = types.Part.from_bytes(data=img_bytes, mime_type='image/png')
+                    contents_for_api.append(image_part)
+                    app.logger.info(f"Successfully rendered image for slide {i+1}.")
+                else:
+                    app.logger.warning(f"Could not render image for slide {i+1} (page index out of bounds for PyMuPDF). Proceeding with text only.")
 
-                # Part 2: The Extracted Text from the same slide
+                # Part 2: The Extracted Text (this runs regardless)
                 slide_text_parts = []
                 for shape in slide.shapes:
                     if shape.has_text_frame and shape.text_frame.text:
                         slide_text_parts.append(shape.text_frame.text.strip())
                 
-                # Also extract speaker notes for additional context
                 notes_text = ""
                 if slide.has_notes_slide and slide.notes_slide.notes_text_frame:
                     notes_text = slide.notes_slide.notes_text_frame.text.strip()
                 
-                # Combine text and notes into a single text part for the AI
-                text_content_for_slide = f"\n--- Extracted text for the slide above (Slide {i+1}) ---\n" + "\n".join(slide_text_parts)
+                text_content_for_slide = f"\n--- Extracted text for slide {i+1} ---\n" + "\n".join(slide_text_parts)
                 if notes_text:
                     text_content_for_slide += f"\n\n--- Speaker Notes ---\n{notes_text}"
                 
@@ -208,7 +208,6 @@ def generate_questions():
             doc_for_images.close()
         
         else:
-            # Handle all other file types (PDF, DOCX, TXT) with text extraction
             app.logger.info(f"Processing text-based file: {file.filename}")
             extracted_text = ""
             file_stream = io.BytesIO(file_bytes)
@@ -226,7 +225,6 @@ def generate_questions():
             
             if not extracted_text.strip(): return jsonify({"success": False, "message": "Could not extract any text from the document."}), 400
             
-            # For text-only files, the prompt structure is simpler
             user_prompt = f"Please generate {num_questions} questions from the following document.\n- Subject: {subject}\n- Grade Level: {grade}\n- Desired Question Types: {question_types}\n- Additional Teacher Notes: {notes}\n\nSource Text:\n---\n{extracted_text[:30000]}"
             contents_for_api = [SYSTEM_PROMPT, user_prompt]
 
@@ -257,9 +255,8 @@ def generate_questions():
 
     except Exception as e:
         app.logger.error(f"Error during AI call for user {user.id}: {e}", exc_info=True)
-        # Check for specific Google API errors if needed
         if isinstance(e, google_exceptions.GoogleAPICallError):
-            return jsonify(success=False, message=f"A Google API error occurred: {e.reason}"), 502 # Bad Gateway
+            return jsonify(success=False, message=f"A Google API error occurred: {e.reason}"), 502
         return jsonify(success=False, message=f"An error occurred with the AI service: {str(e)}"), 500
 
 # --- Server Execution ---
