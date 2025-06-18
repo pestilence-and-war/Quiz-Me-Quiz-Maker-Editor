@@ -45,50 +45,55 @@ function updateLoginStateUI() {
 }
 
 async function handleLogin() {
-    console.log("Attempting login...");
-    authError.style.display = 'none';
+    // Get email and password from the form
     const email = authEmail.value;
     const password = authPassword.value;
+    
+    // Clear previous errors
+    authError.style.display = 'none';
 
+    // Basic validation
     if (!email || !password) {
-        authError.textContent = 'Email and password are required.';
+        authError.textContent = "Email and password are required.";
         authError.style.display = 'block';
-        console.error("Login failed: Missing email or password.");
         return;
     }
 
     try {
+        // Step 1: Call the login endpoint
         const response = await fetch(`${API_BASE_URL}/api/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password }),
         });
 
-        console.log("Login response status:", response.status);
+        // Step 2: Get the JSON response body
         const data = await response.json();
-        console.log("Login response data:", data);
 
+        // Step 3: Check if the request failed
         if (!response.ok) {
-            throw new Error(data.message || `Login failed with status: ${response.status}`);
+            // If it failed, use the message from the server's JSON response
+            throw new Error(data.message || 'Invalid credentials');
         }
 
-        // --- CRUCIAL PART ---
+        // Step 4: CRITICAL - Check if the access_token exists in the successful response
         if (data.access_token) {
-            console.log("Access token found in response. Saving to localStorage...");
+            // Step 5: If it exists, save it to localStorage
             localStorage.setItem('jwt_token', data.access_token);
-            console.log("Token saved. Current value:", localStorage.getItem('jwt_token'));
             
-            // Now, update UI and proceed
-            authModal.classList.remove('active');
+            // Step 6: Close the login modal and update the UI
+            closeAuthModal(); // Use the dedicated close function
             updateLoginStateUI();
-            openAiModal(); // This will now succeed because isLoggedIn() will be true
+            
+            // Step 7: Proceed to the AI modal
+            openAiModal(); 
         } else {
-            // This case handles if the server sends a 200 OK but no token, which is unlikely but good to guard against.
-            throw new Error("Login successful, but no access token was provided by the server.");
+            // This is a failsafe for an unexpected server response
+            throw new Error('Login succeeded but did not receive a token.');
         }
-        
+
     } catch (error) {
-        console.error("Login fetch/processing error:", error);
+        // If any step in the 'try' block fails, show the error
         authError.textContent = error.message;
         authError.style.display = 'block';
     }
@@ -198,7 +203,7 @@ async function handleGenerateQuestions() {
 
         const result = await response.json();
 
-        if (response.status === 401 || response.status === 422) {
+        if (response.status === 401) {
             handleLogout();
             alert("Your session has expired. Please log in again.");
             closeAiModal();
@@ -207,6 +212,9 @@ async function handleGenerateQuestions() {
         }
 
         if (!response.ok || !result.success) {
+            if (response.headers.get("content-type") && response.headers.get("content-type").indexOf("application/json") === -1) {
+                throw new Error("The server returned a non-JSON error page. Check the backend logs for a Python crash.");
+            }
             throw new Error(result.message || 'An unknown error occurred.');
         }
 
