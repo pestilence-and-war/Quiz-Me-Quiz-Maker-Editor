@@ -4,6 +4,9 @@ import json
 import fitz  # PyMuPDF
 import logging
 import io
+import uuid
+import re
+import time
 from docx import Document
 from pptx import Presentation
 from flask import Flask, request, jsonify
@@ -154,30 +157,30 @@ def generate_questions():
         file = request.files['document']
         if file.filename == '': return jsonify({"success": False, "message": "No selected file."}), 400
 
+        unique_filename = str(uuid.uuid4()) + "_" + file.filename
+        temp_file_path = os.path.join(os.path.dirname(__file__), unique_filename)
+
+        file.save(temp_file_path)
+
         subject = request.form.get('subject', 'General')
         grade = request.form.get('grade', 'Unspecified')
         notes = request.form.get('notes', 'None')
         num_questions = request.form.get('num_questions', '5')
         question_types = request.form.get('question_types', 'single, multi-select')
 
-        file_bytes = file.read()
         filename_lower = file.filename.lower()
-        
         contents_for_api = []
 
         if filename_lower.endswith('.pptx'):
             app.logger.info(f"Processing PPTX file: {file.filename} using hybrid image/text model.")
-            pptx_stream_for_text = io.BytesIO(file_bytes)
-            pptx_stream_for_images = io.BytesIO(file_bytes)
-
-            prs = Presentation(pptx_stream_for_text)
-            doc_for_images = fitz.open(stream=pptx_stream_for_images, filetype="pptx")
+            prs = Presentation(temp_file_path)
+            doc_for_images = fitz.open(temp_file_path)
             
             initial_prompt = f"{SYSTEM_PROMPT}\n\nPlease generate {num_questions} questions based on the content of the following presentation slides. Each slide is provided as both an image and its extracted text. Use both to understand the full context.\n- Subject: {subject}\n- Grade Level: {grade}\n- Desired Question Types: {question_types}\n- Additional Teacher Notes: {notes}\n---"
             contents_for_api.append(initial_prompt)
 
             for i, slide in enumerate(prs.slides):
-                # --- FIX 2: Added a guard clause to prevent crash if page counts differ ---
+                # --- Added a guard clause to prevent crash if page counts differ ---
                 if i < doc_for_images.page_count:
                     # Part 1: The Image
                     page_for_image = doc_for_images.load_page(i)
@@ -208,20 +211,20 @@ def generate_questions():
             doc_for_images.close()
         
         else:
-            app.logger.info(f"Processing text-based file: {file.filename}")
+            app.logger.info(f"Processing text-based file: {temp_file_path}")
             extracted_text = ""
-            file_stream = io.BytesIO(file_bytes)
 
             if filename_lower.endswith('.pdf'):
-                with fitz.open(stream=file_stream, filetype="pdf") as doc:
+                with fitz.open(temp_file_path) as doc:
                     for page in doc: extracted_text += page.get_text() + "\n"
             elif filename_lower.endswith('.docx'):
-                doc = Document(file_stream)
+                doc = Document(temp_file_path)
                 for para in doc.paragraphs: extracted_text += para.text + "\n"
             elif filename_lower.endswith('.txt'):
-                extracted_text = file_bytes.decode('utf-8', errors='ignore')
+                with open(temp_file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    extracted_text = f.read()
             else:
-                return jsonify({"success": False, "message": "Unsupported file type. Please use PDF, TXT, DOCX, or PPTX."}), 400
+                return jsonify({"success": False, "message": "Unsupported file type."}), 400
             
             if not extracted_text.strip(): return jsonify({"success": False, "message": "Could not extract any text from the document."}), 400
             
@@ -231,33 +234,66 @@ def generate_questions():
     except Exception as e:
         app.logger.error(f"Error parsing form or file: {e}", exc_info=True)
         return jsonify({"success": False, "message": "Failed to process the uploaded document."}), 500
+    
+    finally:
+        # This block executes whether the 'try' block succeeds or fails
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+            app.logger.info(f"Successfully deleted temporary file: {temp_file_path}")
 
     # --- Step 5: AI Call ---
-    try:
-        client = genai.Client(api_key=api_key)
-        generation_config = types.GenerateContentConfig(temperature=0.7, max_output_tokens=8192, response_mime_type="application/json")
-        
-        app.logger.info(f"Sending request to Gemini with {len(contents_for_api)} parts for user {user.id}.")
-        response = client.models.generate_content(
-            model='models/gemini-1.5-flash-latest',
-            contents=contents_for_api,
-            config=generation_config
-        )
-        generated_json = json.loads(response.text)
-        
-        if not is_dev_user:
-            new_log = UsageLog(user_id=user.id)
-            db.session.add(new_log)
-            db.session.commit()
-            app.logger.info(f"Logged successful generation for user {user.email}.")
-        
-        return jsonify({"success": True, "questions": generated_json})
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            app.logger.info(f"AI call attempt {attempt + 1}/{max_retries} for user {user.id}.")
+            client = genai.Client(api_key=api_key)
+            generation_config = types.GenerateContentConfig(temperature=0.7, max_output_tokens=8192, response_mime_type="application/json")
+            
+            response = client.models.generate_content(
+                model='models/gemini-2.0-flash-lite',
+                contents=contents_for_api,
+                config=generation_config
+            )
+            
+            # --- Defense 1: Extract JSON from the response text ---
+            response_text = response.text
+            # Use regex to find a string that starts with [ and ends with ]
+            match = re.search(r'\[.*\]', response_text, re.DOTALL)
+            
+            if match:
+                json_text = match.group(0)
+            else:
+                # If no match, maybe the response is just malformed. Try parsing it all.
+                json_text = response_text
 
-    except Exception as e:
-        app.logger.error(f"Error during AI call for user {user.id}: {e}", exc_info=True)
-        if isinstance(e, google_exceptions.GoogleAPICallError):
-            return jsonify(success=False, message=f"A Google API error occurred: {e.reason}"), 502
-        return jsonify(success=False, message=f"An error occurred with the AI service: {str(e)}"), 500
+            # --- Defense 2: Try to parse the extracted (or full) text ---
+            generated_json = json.loads(json_text)
+            
+            # If we reach here, the JSON is valid!
+            if not is_dev_user:
+                new_log = UsageLog(user_id=user.id)
+                db.session.add(new_log)
+                db.session.commit()
+                app.logger.info(f"Logged successful generation for user {user.email}.")
+            
+            # Success! Return the response and exit the loop and function.
+            return jsonify({"success": True, "questions": generated_json})
+
+        except json.JSONDecodeError as e:
+            app.logger.warning(f"Attempt {attempt + 1} failed: Invalid JSON response from AI. Error: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(1)  # Wait 1 second before retrying
+                continue # Go to the next iteration of the loop
+            else:
+                app.logger.error(f"All {max_retries} retries failed for user {user.id}. Final response text was: {response_text}")
+                return jsonify(success=False, message=f"The AI returned a malformed response that could not be repaired. Please try again."), 500
+        
+        except Exception as e:
+            # Handle other errors like API connection issues
+            app.logger.error(f"An unexpected error occurred during AI call for user {user.id}: {e}", exc_info=True)
+            if isinstance(e, google_exceptions.GoogleAPICallError):
+                return jsonify(success=False, message=f"A Google API error occurred: {e.reason}"), 502
+            return jsonify(success=False, message=f"An unexpected error occurred with the AI service."), 500
 
 # --- Server Execution ---
 if __name__ == '__main__':
