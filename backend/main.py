@@ -3,6 +3,9 @@ import os
 import json
 import fitz  # PyMuPDF
 import logging
+import io
+from docx import Document
+from pptx import Presentation
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from waitress import serve
@@ -53,7 +56,7 @@ class User(db.Model):
 class UsageLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.now)
 
 # --- Tier Limits Configuration ---
 TIER_LIMITS = {
@@ -156,29 +159,90 @@ def generate_questions():
         num_questions = request.form.get('num_questions', '5')
         question_types = request.form.get('question_types', 'single, multi-select')
 
-        extracted_text = ""
         file_bytes = file.read()
-        if file.filename.lower().endswith('.pdf'):
-            with fitz.open(stream=file_bytes, filetype="pdf") as doc:
-                for page in doc: extracted_text += page.get_text()
-        elif file.filename.lower().endswith('.txt'):
-            extracted_text = file_bytes.decode('utf-8', errors='ignore')
-        else:
-            return jsonify({"success": False, "message": "Unsupported file type. Please use PDF or TXT."}), 400
+        filename_lower = file.filename.lower()
         
-        if not extracted_text.strip(): return jsonify({"success": False, "message": "Could not extract any text from the document."}), 400
+        # This list will be populated differently depending on file type
+        contents_for_api = []
+
+        if filename_lower.endswith('.pptx'):
+            app.logger.info(f"Processing PPTX file: {file.filename} using hybrid image/text model.")
+            # Use io.BytesIO to treat the byte stream like a file, avoiding saving to disk
+            pptx_stream_for_text = io.BytesIO(file_bytes)
+            pptx_stream_for_images = io.BytesIO(file_bytes)
+
+            prs = Presentation(pptx_stream_for_text)
+            doc_for_images = fitz.open(stream=pptx_stream_for_images, filetype="pptx")
+            
+            # For multimodal requests, the system prompt and instructions go first in the list
+            initial_prompt = f"{SYSTEM_PROMPT}\n\nPlease generate {num_questions} questions based on the content of the following presentation slides. Each slide is provided as both an image and its extracted text. Use both to understand the full context.\n- Subject: {subject}\n- Grade Level: {grade}\n- Desired Question Types: {question_types}\n- Additional Teacher Notes: {notes}\n---"
+            contents_for_api.append(initial_prompt)
+
+            # Process each slide for its image and text
+            for i, slide in enumerate(prs.slides):
+                # Part 1: The Image
+                page_for_image = doc_for_images.load_page(i)
+                pix = page_for_image.get_pixmap(dpi=150)
+                img_bytes = pix.tobytes("png")
+                image_part = types.Part.from_bytes(data=img_bytes, mime_type='image/png')
+                contents_for_api.append(image_part)
+
+                # Part 2: The Extracted Text from the same slide
+                slide_text_parts = []
+                for shape in slide.shapes:
+                    if shape.has_text_frame and shape.text_frame.text:
+                        slide_text_parts.append(shape.text_frame.text.strip())
+                
+                # Also extract speaker notes for additional context
+                notes_text = ""
+                if slide.has_notes_slide and slide.notes_slide.notes_text_frame:
+                    notes_text = slide.notes_slide.notes_text_frame.text.strip()
+                
+                # Combine text and notes into a single text part for the AI
+                text_content_for_slide = f"\n--- Extracted text for the slide above (Slide {i+1}) ---\n" + "\n".join(slide_text_parts)
+                if notes_text:
+                    text_content_for_slide += f"\n\n--- Speaker Notes ---\n{notes_text}"
+                
+                contents_for_api.append(text_content_for_slide)
+
+            doc_for_images.close()
+        
+        else:
+            # Handle all other file types (PDF, DOCX, TXT) with text extraction
+            app.logger.info(f"Processing text-based file: {file.filename}")
+            extracted_text = ""
+            file_stream = io.BytesIO(file_bytes)
+
+            if filename_lower.endswith('.pdf'):
+                with fitz.open(stream=file_stream, filetype="pdf") as doc:
+                    for page in doc: extracted_text += page.get_text() + "\n"
+            elif filename_lower.endswith('.docx'):
+                doc = Document(file_stream)
+                for para in doc.paragraphs: extracted_text += para.text + "\n"
+            elif filename_lower.endswith('.txt'):
+                extracted_text = file_bytes.decode('utf-8', errors='ignore')
+            else:
+                return jsonify({"success": False, "message": "Unsupported file type. Please use PDF, TXT, DOCX, or PPTX."}), 400
+            
+            if not extracted_text.strip(): return jsonify({"success": False, "message": "Could not extract any text from the document."}), 400
+            
+            # For text-only files, the prompt structure is simpler
+            user_prompt = f"Please generate {num_questions} questions from the following document.\n- Subject: {subject}\n- Grade Level: {grade}\n- Desired Question Types: {question_types}\n- Additional Teacher Notes: {notes}\n\nSource Text:\n---\n{extracted_text[:30000]}"
+            contents_for_api = [SYSTEM_PROMPT, user_prompt]
+
     except Exception as e:
         app.logger.error(f"Error parsing form or file: {e}", exc_info=True)
         return jsonify({"success": False, "message": "Failed to process the uploaded document."}), 500
 
     # --- Step 5: AI Call ---
-    user_prompt = f"Please generate {num_questions} questions from the following document.\n- Subject: {subject}\n- Grade Level: {grade}\n- Desired Question Types: {question_types}\n- Additional Teacher Notes: {notes}\n\nSource Text:\n---\n{extracted_text[:20000]}"
     try:
         client = genai.Client(api_key=api_key)
         generation_config = types.GenerateContentConfig(temperature=0.7, max_output_tokens=8192, response_mime_type="application/json")
+        
+        app.logger.info(f"Sending request to Gemini with {len(contents_for_api)} parts for user {user.id}.")
         response = client.models.generate_content(
             model='models/gemini-1.5-flash-latest',
-            contents=[SYSTEM_PROMPT, user_prompt],
+            contents=contents_for_api,
             config=generation_config
         )
         generated_json = json.loads(response.text)
@@ -190,8 +254,12 @@ def generate_questions():
             app.logger.info(f"Logged successful generation for user {user.email}.")
         
         return jsonify({"success": True, "questions": generated_json})
+
     except Exception as e:
         app.logger.error(f"Error during AI call for user {user.id}: {e}", exc_info=True)
+        # Check for specific Google API errors if needed
+        if isinstance(e, google_exceptions.GoogleAPICallError):
+            return jsonify(success=False, message=f"A Google API error occurred: {e.reason}"), 502 # Bad Gateway
         return jsonify(success=False, message=f"An error occurred with the AI service: {str(e)}"), 500
 
 # --- Server Execution ---

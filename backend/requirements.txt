@@ -7,3 +7,5 @@ PyMuPDF
 flask-sqlalchemy
 flask-JWT-Extended
 flask-Bcrypt
+python-docx
+python-pptx
