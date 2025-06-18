@@ -223,14 +223,32 @@ async function handleGenerateQuestions() {
             throw new Error('The AI did not return any valid questions.');
         }
 
+        // Remove initial blank question
+        const currentQuestions = DataManager.getAllQuestions();
+        if (currentQuestions.length === 1 && isQuestionEffectivelyBlank(currentQuestions[0])) {
+            console.log("Initial blank question found. Removing it before appending new questions.");
+            // This removes the single blank question from the data store.
+            DataManager.removeQuestion(currentQuestions[0].id);
+        }
+
+        // Step 1: Add all new questions to the data manager first.
         newQuestions.forEach(q => {
             const newQuestionId = DataManager.generateNewId();
             const questionData = { ...q, id: newQuestionId };
             DataManager.addQuestion(questionData);
-            const newBlock = UIRenderer.renderQuestionBlock(questionData);
+        });
+
+        // Step 2: Clear the entire UI container.
+        DOM.questionsContainer.innerHTML = '';
+
+        // Step 3: Re-render the UI from the single source of truth (DataManager).
+        const allQuestions = DataManager.getAllQuestions();
+        allQuestions.forEach(q => {
+            const newBlock = UIRenderer.renderQuestionBlock(q);
             UIRenderer.updateRemoveOptionButtons(newBlock);
         });
 
+        // Step 4: Update the rest of the UI
         updateSaveButtonState();
         updatePreviewSelectDropdown();
         saveEditorStateToLocalStorage();
@@ -248,7 +266,7 @@ async function handleGenerateQuestions() {
 }
 
 
-// --------------- ORIGINAL EDITOR HELPER FUNCTIONS ---------------\n
+// --------------- HELPER FUNCTIONS ---------------\n
 function generateFilename() {
     const subject = DOM.subjectInput.value.trim().replace(/[^a-zA-Z0-9]+/g, '-') || 'subject';
     const grade = DOM.gradeInput.value.trim().replace(/[^a-zA-Z0-9]+/g, '') || 'grade';
@@ -264,6 +282,25 @@ function generateFilename() {
     filename = filename.replace(/_+$/, '');
     filename = filename.toLowerCase();
     return `${filename}.json`;
+}
+
+/**
+ * Checks if a question object is effectively empty/untouched.
+ * @param {object} q - The question object from DataManager.
+ * @returns {boolean} - True if the question is blank, false otherwise.
+ */
+function isQuestionEffectivelyBlank(q) {
+    if (!q) return false;
+
+    const isTextBlank = q.Question.trim() === '';
+    // Checks if the Options array exists and if every option inside it is an empty string.
+    const areOptionsBlank = !q.Options || (Array.isArray(q.Options) && q.Options.every(opt => opt.trim() === ''));
+    // Checks if the answer is null, undefined, or an empty array.
+    const isAnswerBlank = !q.answer || (Array.isArray(q.answer) && q.answer.length === 0);
+    const isRationaleBlank = !q.Rationale || q.Rationale.trim() === '';
+    const isHintBlank = !q.hint || q.hint.trim() === '';
+
+    return isTextBlank && areOptionsBlank && isAnswerBlank && isRationaleBlank && isHintBlank;
 }
 
 // --------------- FILE HANDLING FUNCTIONS ---------------\n
