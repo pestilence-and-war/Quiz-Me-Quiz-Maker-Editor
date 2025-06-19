@@ -7,5 +7,6 @@ PyMuPDF
 flask-sqlalchemy
 flask-JWT-Extended
 flask-Bcrypt
-python-docx
-python-pptx
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib

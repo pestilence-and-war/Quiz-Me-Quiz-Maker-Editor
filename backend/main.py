@@ -19,12 +19,21 @@ from datetime import datetime, timedelta
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import create_access_token, get_jwt_identity, JWTManager, verify_jwt_in_request
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 
 
 # --- Google GenAI Library Imports ---
 from google import genai
 from google.genai import types
 from google.api_core import exceptions as google_exceptions
+
+# --- Define constants for the Drive API ---
+SERVICE_ACCOUNT_FILE = os.path.join(os.path.dirname(__file__), 'service_account.json')
+SCOPES = ['https://www.googleapis.com/auth/drive']
+# Get the ID of the folder you shared with the service account from its URL
+DRIVE_FOLDER_ID = 'your_shared_folder_id_here'bzzz
 
 # --- App Initialization & Config ---
 load_dotenv()
