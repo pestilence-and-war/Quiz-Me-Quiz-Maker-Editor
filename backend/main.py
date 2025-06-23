@@ -7,6 +7,7 @@ import io
 import uuid
 import re
 import time
+
 from docx import Document
 from pptx import Presentation
 from flask import Flask, request, jsonify
@@ -16,6 +17,9 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta
 
 # --- Imports for DB and Auth ---
+import sqlalchemy
+from google.cloud.sql.connector import Connector
+from google.cloud import secretmanager
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import create_access_token, get_jwt_identity, JWTManager, verify_jwt_in_request
@@ -45,16 +49,43 @@ app.logger.setLevel(logging.INFO)
 
 # In production, use a secure, randomly generated secret key stored as an env variable
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///site.db"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
 app.config["JWT_CSRF_PROTECTION"] = False
 app.config["JWT_CSRF_IN_COOKIES"] = False
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SQLALCHEMY_ECHO"] = True
+
+# Placeholders
+project_id = "YOUR_PROJECT_ID"
+region = "YOUR_INSTANCE_REGION"
+instance_name = "YOUR_INSTANCE_NAME"
+db_user = "YOUR_DB_USER"
+db_pass = "YOUR_DB_PASSWORD" # This will be loaded from Secret Manager
+db_name = "YOUR_DB_NAME"
+
+INSTANCE_CONNECTION_NAME = f"{project_id}:{region}:{instance_name}"
+
+connector = Connector()
+
+def getconn():
+    conn = connector.connect(
+        INSTANCE_CONNECTION_NAME,
+        "pg8000",
+        user=db_user,
+        password=db_pass,
+        db=db_name
+    )
+    return conn
+
+app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql+pg8000://:@/"
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"creator": getconn}
+
+db = SQLAlchemy(app)
+
 
 CORS(app, supports_credentials=True)
 
 # --- Initialize Extensions ---
-db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 
@@ -155,10 +186,29 @@ def generate_questions():
             return jsonify({"success": False, "message": f"You have used {usage_count}/{limit} of your monthly generations. Please upgrade for more."}), 429
 
     # --- Step 3: Load API Key ---
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        app.logger.error("CRITICAL: GOOGLE_API_KEY not configured on server.")
-        return jsonify({"message": "Server configuration error: API key not found."}), 500
+    # --- NEW: Load API Key from Secret Manager ---
+    try:
+        # This is the same project_id variable we defined earlier
+        secret_name = "gemini-api-key" # We will create a secret with this name
+        secret_version = "latest" # Always get the most recent version
+
+        # Create the Secret Manager client
+        client = secretmanager.SecretManagerServiceClient()
+
+        # Build the resource name of the secret version
+        name = f"projects/{project_id}/secrets/{secret_name}/versions/{secret_version}"
+
+        # Access the secret version
+        response = client.access_secret_version(request={"name": name})
+
+        # Get the secret payload
+        api_key = response.payload.data.decode("UTF-8")
+        app.logger.info("Successfully loaded API key from Secret Manager.")
+
+    except Exception as e:
+        app.logger.error(f"CRITICAL: Failed to load GOOGLE_API_KEY from Secret Manager: {e}")
+        return jsonify({"message": "Server configuration error: Could not retrieve API key."}), 500
+    # --- END OF SECRET MANAGER BLOCK ---
 
     # --- Step 4: File and Form Processing ---
     try:
@@ -307,9 +357,8 @@ def generate_questions():
 # --- Server Execution ---
 if __name__ == '__main__':
     with app.app_context():
-        app.logger.info("Checking for and creating database if it doesn't exist...")
-        db.create_all()
-        app.logger.info("Database is ready.")
+        pass
+        
     
-    app.logger.info("Starting production server with Waitress...")
-    serve(app, host='0.0.0.0', port=5000)
+    app.logger.info("Starting development server...")
+    serve(app, host='0.0.0.0', port=5000, debug=True)

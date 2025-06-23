@@ -10,3 +10,5 @@ flask-Bcrypt
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
+psycopg2-binary
+cloud-sql-python-connector[pg8000]
