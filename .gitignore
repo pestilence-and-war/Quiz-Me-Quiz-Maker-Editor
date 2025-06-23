@@ -4,3 +4,7 @@
 # Python cache
 __pycache__/
 *.pyc
+
+# Structured context file and tools
+project_context_structured.json
+build_code_json.py

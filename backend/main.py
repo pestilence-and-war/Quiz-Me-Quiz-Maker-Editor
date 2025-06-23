@@ -33,7 +33,7 @@ from google.api_core import exceptions as google_exceptions
 SERVICE_ACCOUNT_FILE = os.path.join(os.path.dirname(__file__), 'service_account.json')
 SCOPES = ['https://www.googleapis.com/auth/drive']
 # Get the ID of the folder you shared with the service account from its URL
-DRIVE_FOLDER_ID = 'your_shared_folder_id_here'bzzz
+DRIVE_FOLDER_ID = 'your_shared_folder_id_here'
 
 # --- App Initialization & Config ---
 load_dotenv()
