@@ -29,7 +29,7 @@ const loginBtn = document.getElementById('loginBtn');
 const registerBtn = document.getElementById('registerBtn');
 const authError = document.getElementById('authError');
 
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = 'https://quiz-backend-613338700440.us-central1.run.app';
 
 // --------------- AUTHENTICATION FUNCTIONS ---------------
 function isLoggedIn() {
