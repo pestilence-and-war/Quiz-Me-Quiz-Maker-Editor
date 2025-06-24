@@ -56,12 +56,27 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SQLALCHEMY_ECHO"] = True
 
 # Placeholders
-project_id = "YOUR_PROJECT_ID"
-region = "YOUR_INSTANCE_REGION"
-instance_name = "YOUR_INSTANCE_NAME"
-db_user = "YOUR_DB_USER"
-db_pass = "YOUR_DB_PASSWORD" # This will be loaded from Secret Manager
-db_name = "YOUR_DB_NAME"
+project_id = "bold-gearbox-463620-f4"
+region = "us-central1"
+instance_name = "quiz-db-instance"
+db_user = "quiz-user"
+db_name = "quiz-db"
+
+# --- Load DB Password from Secret Manager ---
+try:
+    sm_client = secretmanager.SecretManagerServiceClient()
+    db_pass_secret_name = "quiz-db-password"
+    db_pass_resource_name = f"projects/{project_id}/secrets/{db_pass_secret_name}/versions/latest"
+    db_pass_response = sm_client.access_secret_version(request={"name": db_pass_resource_name})
+    db_pass = db_pass_response.payload.data.decode("UTF-8")
+    app.logger.info("Successfully loaded database password from Secret Manager.")
+except Exception as e:
+    # If we can't get the DB password, the app can't start. Log a fatal error.
+    app.logger.critical(f"FATAL: Could not load database password from Secret Manager: {e}")
+    # In a real-world scenario, you might want the app to exit or raise an exception here.
+    # For now, we'll set it to None to ensure it fails loudly in the connector.
+    db_pass = None
+# --- END OF SECRET MANAGER BLOCK FOR DB_PASS ---
 
 INSTANCE_CONNECTION_NAME = f"{project_id}:{region}:{instance_name}"
 
