@@ -1,0 +1,16 @@
+Flask
+Flask-Bcrypt
+Flask-Cors
+Flask-JWT-Extended
+Flask-SQLAlchemy
+PyMuPDF
+cloud-sql-python-connector[pg8000]
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+google-cloud-secret-manager
+google-genai
+python-docx
+python-dotenv
+python-pptx
+waitress
