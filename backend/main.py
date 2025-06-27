@@ -48,7 +48,6 @@ logging.basicConfig(level=logging.INFO)
 app.logger.setLevel(logging.INFO)
 
 # In production, use a secure, randomly generated secret key stored as an env variable
-app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
 app.config["JWT_CSRF_PROTECTION"] = False
 app.config["JWT_CSRF_IN_COOKIES"] = False
@@ -99,6 +98,21 @@ db = SQLAlchemy(app)
 
 
 CORS(app, supports_credentials=True)
+
+# --- Load JWT Secret Key from Secret Manager ---
+try:
+    # We can reuse the sm_client if it's already defined, or create a new one
+    sm_client = secretmanager.SecretManagerServiceClient()
+    jwt_secret_name = "jwt-secret-key"
+    jwt_secret_resource_name = f"projects/{project_id}/secrets/{jwt_secret_name}/versions/latest"
+    jwt_secret_response = sm_client.access_secret_version(request={"name": jwt_secret_resource_name})
+    app.config["JWT_SECRET_KEY"] = jwt_secret_response.payload.data.decode("UTF-8")
+    app.logger.info("Successfully loaded JWT_SECRET_KEY from Secret Manager.")
+except Exception as e:
+    app.logger.critical(f"FATAL: Could not load JWT_SECRET_KEY from Secret Manager: {e}")
+    # If the app can't sign tokens, it's a critical failure.
+    # You might want the app to exit here in a real-world scenario.
+# --- End of JWT Secret Loading ---
 
 # --- Initialize Extensions ---
 bcrypt = Bcrypt(app)
