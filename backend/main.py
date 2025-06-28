@@ -6,6 +6,7 @@ import logging
 import io
 import uuid
 import re
+import shortuuid
 import time
 
 from docx import Document
@@ -21,8 +22,9 @@ import sqlalchemy
 from google.cloud.sql.connector import Connector
 from google.cloud import secretmanager
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.dialects.postgresql import JSONB
 from flask_bcrypt import Bcrypt
-from flask_jwt_extended import create_access_token, get_jwt_identity, JWTManager, verify_jwt_in_request
+from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, JWTManager, verify_jwt_in_request
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
@@ -119,16 +121,40 @@ bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 
 # --- Database Models ---
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(60), nullable=False)
-    subscription_tier = db.Column(db.String(20), nullable=False, default='free')
+class Quiz(db.Model):
+    __tablename__ = 'quiz'
+    # Use shortuuid for a nice, short, URL-safe primary key
+    id = db.Column(db.String(22), primary_key=True, unique=True, default=lambda: shortuuid.uuid())
+    title = db.Column(db.String(200), nullable=False)
+    # Link this quiz to the user who created it
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    # Use the highly efficient JSONB type for PostgreSQL to store the quiz data
+    quiz_data = db.Column(JSONB, nullable=False)
+    created_at = db.Column(db.DateTime, server_default=db.func.now())
+
+class TestAttempt(db.Model):
+    __tablename__ = 'test_attempt'
+    id = db.Column(db.String(22), primary_key=True, unique=True, default=lambda: shortuuid.uuid())
+    quiz_id = db.Column(db.String(22), db.ForeignKey('quiz.id'), nullable=False)
+    player_name = db.Column(db.String(100), nullable=False)
+    score = db.Column(db.Integer, default=0)
+    status = db.Column(db.String(20), default='started') # e.g., 'started', 'completed'
+    started_at = db.Column(db.DateTime, server_default=db.func.now())
+    completed_at = db.Column(db.DateTime, nullable=True)
+    # This will store the full list of answers and results for this attempt
+    results_data = db.Column(JSONB, nullable=True)
 
 class UsageLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     timestamp = db.Column(db.DateTime, nullable=False, default=datetime.now)
+
+class User(db.Model):
+    __tablename__ = 'user'
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(60), nullable=False)
+    subscription_tier = db.Column(db.String(20), nullable=False, default='free')
 
 # --- Tier Limits Configuration ---
 TIER_LIMITS = {
@@ -382,6 +408,83 @@ def generate_questions():
             if isinstance(e, google_exceptions.GoogleAPICallError):
                 return jsonify(success=False, message=f"A Google API error occurred: {e.reason}"), 502
             return jsonify(success=False, message=f"An unexpected error occurred with the AI service."), 500
+
+@app.route('/api/quizzes', methods=['GET'])
+@jwt_required()
+def get_user_quizzes():
+    """Returns a list of quizzes owned by the logged-in user."""
+    current_user_id = get_jwt_identity()
+    quizzes = Quiz.query.filter_by(user_id=current_user_id).order_by(Quiz.created_at.desc()).all()
+    
+    # We only need to return the id and title for the dashboard list
+    quiz_list = [{"id": q.id, "title": q.title, "created_at": q.created_at.isoformat()} for q in quizzes]
+    
+    return jsonify({"success": True, "quizzes": quiz_list})
+
+@app.route('/api/save-quiz', methods=['POST'])
+@jwt_required()
+def save_quiz():
+    """Saves a new quiz to the database, linked to the current user."""
+    current_user_id = get_jwt_identity()
+    data = request.get_json()
+    quiz_json = data.get('quiz_data')
+    title = data.get('title')
+
+    if not quiz_json or not title:
+        return jsonify({"success": False, "message": "Quiz data and title are required."}), 400
+
+    try:
+        new_quiz = Quiz(
+            title=title,
+            quiz_data=quiz_json,
+            user_id=current_user_id
+        )
+        db.session.add(new_quiz)
+        db.session.commit()
+        app.logger.info(f"User {current_user_id} saved new quiz '{title}' with code: {new_quiz.id}")
+        return jsonify({"success": True, "quiz_code": new_quiz.id, "title": new_quiz.title}), 201
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error saving quiz for user {current_user_id}: {e}")
+        return jsonify({"success": False, "message": "Could not save quiz to the database."}), 500
+
+@app.route('/api/load-quiz/<string:quiz_code>', methods=['GET'])
+def load_quiz(quiz_code):
+    """Loads a quiz from the database using its short code. No auth required."""
+    quiz = Quiz.query.get(quiz_code)
+    if not quiz:
+        return jsonify({"success": False, "message": "Quiz not found"}), 404
+    
+    # Return the actual JSON data stored in the quiz_data column
+    return jsonify({"success": True, "quiz": quiz.quiz_data})
+
+@app.route('/api/quiz-session/start', methods=['POST'])
+def start_quiz_session():
+    """Starts a new test attempt for a player."""
+    data = request.get_json()
+    quiz_code = data.get('quiz_code')
+    player_name = data.get('player_name')
+
+    if not quiz_code or not player_name:
+        return jsonify({"success": False, "message": "Quiz code and player name are required."}), 400
+    
+    # Verify quiz exists
+    if not Quiz.query.get(quiz_code):
+        return jsonify({"success": False, "message": "Invalid quiz code."}), 404
+
+    try:
+        new_attempt = TestAttempt(
+            quiz_id=quiz_code,
+            player_name=player_name
+        )
+        db.session.add(new_attempt)
+        db.session.commit()
+        app.logger.info(f"Player '{player_name}' started quiz {quiz_code} with session ID {new_attempt.id}")
+        return jsonify({"success": True, "session_id": new_attempt.id})
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error starting quiz session: {e}")
+        return jsonify({"success": False, "message": "Could not start quiz session."}), 500
 
 # --- Server Execution ---
 if __name__ == '__main__':

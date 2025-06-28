@@ -8,3 +8,4 @@ __pycache__/
 # Structured context file and tools
 project_context_structured.json
 build_code_json.py
+init_db.py
