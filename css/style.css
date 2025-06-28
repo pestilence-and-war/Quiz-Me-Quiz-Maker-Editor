@@ -694,3 +694,74 @@ button:disabled {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+
+/* --- NEW VIEW MANAGEMENT STYLES --- */
+.view-container {
+    max-width: 900px;
+    margin: 20px auto;
+    padding: 20px;
+}
+
+.auth-modal-content { /* Re-style the auth view to not be a modal */
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: var(--card-shadow);
+    max-width: 450px;
+    margin: 50px auto;
+}
+
+.auth-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+/* --- NEW DASHBOARD STYLES --- */
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.dashboard-controls {
+    margin-bottom: 20px;
+}
+
+#quizListContainer .quiz-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background: var(--background);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    border-left: 5px solid var(--primary);
+}
+
+#quizListContainer .quiz-item-title {
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+#quizListContainer .quiz-item-actions button {
+    margin-left: 10px;
+    font-size: 0.9rem;
+    padding: 5px 10px;
+}
+
+.editor-actions {
+    margin-top: 30px;
+    text-align: center;
+}
+
+#quizCodeDisplay {
+    background-color: #e8f4fc;
+    padding: 10px;
+    border-radius: 8px;
+    font-weight: bold;
+}
