@@ -1,169 +1,114 @@
-// js/editor.js (MERGED - Dashboard Aware & AI/File Handling)
+// js/editor.js
 
-// --- GLOBAL STATE & CONSTANTS ---
+// This is the main entry point and coordination module.
+// It handles DOM ready, initialization, top-level event listeners,
+// and coordinating calls between other modules (DataManager, UIRenderer, Validation, PreviewRenderer).
+
+const DOM = UIRenderer.DOM;
+
+// --- AI & Auth Modal Elements ---
+const aiGenerateBtn = document.getElementById('aiGenerateBtn');
+const logoutBtn = document.getElementById('logoutBtn');
+// AI Modal
+const aiModal = document.getElementById('aiModal');
+const closeAiModalBtn = document.getElementById('closeAiModalBtn'); // Corrected ID from HTML
+const aiGenerationForm = document.getElementById('aiGenerationForm');
+const generateQuestionsBtn = document.getElementById('generateQuestionsBtn');
+const aiLoadingSpinner = document.getElementById('aiLoadingSpinner');
+const aiDocInput = document.getElementById('aiDocInput');
+const aiSubject = document.getElementById('aiSubject');
+const aiGrade = document.getElementById('aiGrade');
+const aiNumQuestions = document.getElementById('aiNumQuestions');
+const aiNotes = document.getElementById('aiNotes');
+// Auth Modal
+const authModal = document.getElementById('authModal');
+const closeAuthModalBtn = document.getElementById('closeAuthModalBtn'); // Corrected ID from HTML
+const authEmail = document.getElementById('authEmail');
+const authPassword = document.getElementById('authPassword');
+const loginBtn = document.getElementById('loginBtn');
+const registerBtn = document.getElementById('registerBtn');
+const authError = document.getElementById('authError');
+
 const API_BASE_URL = 'https://quiz-backend-613338700440.us-central1.run.app';
-let currentView = 'auth'; // 'auth', 'dashboard', 'editor'
-let currentQuizzes = []; // To store the list of user's quizzes
-let currentlyEditingQuizId = null;
 
-// --- DOM ELEMENT REFERENCES ---
-const DOM = {
-    authView: document.getElementById('authView'),
-    dashboardView: document.getElementById('dashboardView'),
-    editorView: document.getElementById('editorView'),
-    // Auth
-    loginBtn: document.getElementById('loginBtn'),
-    registerBtn: document.getElementById('registerBtn'),
-    authEmail: document.getElementById('authEmail'),
-    authPassword: document.getElementById('authPassword'),
-    authError: document.getElementById('authError'),
-    // Dashboard
-    logoutBtn: document.getElementById('logoutBtn'), // Dashboard logout and also used by AI modal context
-    createNewQuizBtn: document.getElementById('createNewQuizBtn'),
-    quizListContainer: document.getElementById('quizListContainer'),
-    // Editor
-    backToDashboardBtn: document.getElementById('backToDashboardBtn'),
-    logoutBtnEditor: document.getElementById('logoutBtnEditor'), // Editor logout
-    editorTitle: document.getElementById('editorTitle'),
-    quizTitleInput: document.getElementById('quizTitle'),
-    questionsContainer: document.getElementById('questionsContainer'),
-    addQuestionBtn: document.getElementById('addQuestionBtn'),
-    saveQuizBtn: document.getElementById('saveQuizBtn'), // Save to backend (from original first file)
-    quizCodeDisplay: document.getElementById('quizCodeDisplay'),
-    previewQuestionSelect: document.getElementById('previewQuestionSelect'),
-    questionPreviewArea: document.getElementById('questionPreviewArea'),
-
-    // NEW: AI & Auth Modal Elements (from second file)
-    aiGenerateBtn: document.getElementById('aiGenerateBtn'),
-    aiModal: document.getElementById('aiModal'),
-    closeAiModalBtn: document.getElementById('closeAiModalBtn'),
-    aiGenerationForm: document.getElementById('aiGenerationForm'),
-    generateQuestionsBtn: document.getElementById('generateQuestionsBtn'),
-    aiLoadingSpinner: document.getElementById('aiLoadingSpinner'),
-    aiDocInput: document.getElementById('aiDocInput'),
-    aiSubject: document.getElementById('aiSubject'),
-    aiGrade: document.getElementById('aiGrade'),
-    aiNumQuestions: document.getElementById('aiNumQuestions'),
-    aiNotes: document.getElementById('aiNotes'),
-    authModal: document.getElementById('authModal'),
-    closeAuthModalBtn: document.getElementById('closeAuthModalBtn'),
-
-    // NEW: Editor specific elements for file handling/metadata (from second file)
-    saveQuestionsBtn: document.getElementById('saveQuestionsBtn'), // Download JSON (from original second file)
-    newQuizBtn: document.getElementById('newQuizBtn'),
-    loadFileBtn: document.getElementById('loadFileBtn'),
-    hiddenFileInput: document.getElementById('hiddenFileInput'),
-    subjectInput: document.getElementById('subjectInput'),
-    gradeInput: document.getElementById('gradeInput'),
-    setNameInput: document.getElementById('setNameInput'),
-};
-
-// --- API HELPER FUNCTIONS ---
-async function apiCall(endpoint, method = 'GET', body = null) {
-    const token = localStorage.getItem('jwt_token');
-    if (!token && endpoint !== '/api/login' && endpoint !== '/api/register') {
-        // If no token and not trying to log in, force back to auth view
-        showView('auth');
-        return null;
-    }
-
-    const options = {
-        method,
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        }
-    };
-    if (body) {
-        options.body = JSON.stringify(body);
-    }
-
-    try {
-        const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
-        if (response.status === 401) { // Token expired or invalid
-            handleLogout(); // This will show auth view
-            return null;
-        }
-        const data = await response.json();
-        if (!response.ok || (data.success === false)) {
-            throw new Error(data.message || 'An API error occurred.');
-        }
-        return data;
-    } catch (error) {
-        console.error(`API Error on ${endpoint}:`, error);
-        alert(`Error: ${error.message}`);
-        return null;
-    }
-}
-
-// --- VIEW MANAGEMENT ---
-function showView(viewName) {
-    DOM.authView.style.display = 'none';
-    DOM.dashboardView.style.display = 'none';
-    DOM.editorView.style.display = 'none';
-
-    if (viewName === 'auth') {
-        DOM.authView.style.display = 'block';
-    } else if (viewName === 'dashboard') {
-        DOM.dashboardView.style.display = 'block';
-        loadDashboard(); // Refresh dashboard data when showing it
-    } else if (viewName === 'editor') {
-        DOM.editorView.style.display = 'block';
-    }
-    currentView = viewName;
-}
-
-// --------------- AUTHENTICATION FUNCTIONS ---------------
+// --------------- AUTHENTICATION FUNCTIONS ---------------\n
 function isLoggedIn() {
     return !!localStorage.getItem('jwt_token');
 }
 
 function updateLoginStateUI() {
-    // This function updates the visibility of the logout button,
-    // which is shared between the dashboard and AI modal contexts.
-    if (DOM.logoutBtn) { 
-        DOM.logoutBtn.style.display = isLoggedIn() ? 'inline-flex' : 'none';
+    if (isLoggedIn()) {
+        logoutBtn.style.display = 'inline-flex';
+    } else {
+        logoutBtn.style.display = 'none';
     }
 }
 
 async function handleLogin() {
-    const email = DOM.authEmail.value;
-    const password = DOM.authPassword.value;
-    DOM.authError.style.display = 'none';
+    // Get email and password from the form
+    const email = authEmail.value;
+    const password = authPassword.value;
+    
+    // Clear previous errors
+    authError.style.display = 'none';
 
+    // Basic validation
     if (!email || !password) {
-        DOM.authError.textContent = "Email and password are required.";
-        DOM.authError.style.display = 'block';
+        authError.textContent = "Email and password are required.";
+        authError.style.display = 'block';
         return;
     }
 
     try {
+        // Step 1: Call the login endpoint
         const response = await fetch(`${API_BASE_URL}/api/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password }),
         });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || 'Invalid credentials');
 
-        localStorage.setItem('jwt_token', data.access_token);
-        showView('dashboard'); // Main app flow goes to dashboard
-        updateLoginStateUI(); // Update any other login-related UI elements
-        closeAuthModal(); // Close auth modal if it was open (e.g., from AI flow)
+        // Step 2: Get the JSON response body
+        const data = await response.json();
+
+        // Step 3: Check if the request failed
+        if (!response.ok) {
+            // If it failed, use the message from the server's JSON response
+            throw new Error(data.message || 'Invalid credentials');
+        }
+
+        // Step 4: CRITICAL - Check if the access_token exists in the successful response
+        if (data.access_token) {
+            // Step 5: If it exists, save it to localStorage
+            localStorage.setItem('jwt_token', data.access_token);
+            
+            // Step 6: Close the login modal and update the UI
+            closeAuthModal(); // Use the dedicated close function
+            updateLoginStateUI();
+            
+            // Step 7: Proceed to the AI modal
+            openAiModal(); 
+        } else {
+            // This is a failsafe for an unexpected server response
+            throw new Error('Login succeeded but did not receive a token.');
+        }
+
     } catch (error) {
-        DOM.authError.textContent = error.message;
-        DOM.authError.style.display = 'block';
+        // If any step in the 'try' block fails, show the error
+        authError.textContent = error.message;
+        authError.style.display = 'block';
     }
 }
 
 async function handleRegister() {
-    DOM.authError.style.display = 'none';
-    const email = DOM.authEmail.value;
-    const password = DOM.authPassword.value;
+    console.log("Attempting registration...");
+    authError.style.display = 'none';
+    const email = authEmail.value;
+    const password = authPassword.value;
 
     if (!email || password.length < 6) {
-        DOM.authError.textContent = 'Please enter a valid email and a password of at least 6 characters.';
-        DOM.authError.style.display = 'block';
+        authError.textContent = 'Please enter a valid email and a password of at least 6 characters.';
+        authError.style.display = 'block';
+        console.error("Registration failed: Invalid email or password.");
         return;
     }
 
@@ -174,140 +119,57 @@ async function handleRegister() {
             body: JSON.stringify({ email, password }),
         });
 
+        console.log("Registration response status:", response.status);
+        // ALWAYS parse the JSON, even for errors, to get the message
         const data = await response.json(); 
+        console.log("Registration response data:", data);
+
+        // NOW check if the response was successful
         if (!response.ok) {
+            // Throw an error using the message from the parsed JSON
             throw new Error(data.message || `Registration failed with status: ${response.status}`);
         }
-
-        alert('Registration successful! Please log in.');
-        // Optionally clear fields or switch to login mode
+        
+        alert('Registration successful! Please log in to continue.');
+        
     } catch (error) {
-        DOM.authError.textContent = error.message;
-        DOM.authError.style.display = 'block';
+        console.error("Registration fetch/processing error:", error);
+        authError.textContent = error.message;
+        authError.style.display = 'block';
     }
 }
 
 function handleLogout() {
     localStorage.removeItem('jwt_token');
-    showView('auth');
-    updateLoginStateUI(); // Update any other login-related UI elements
-    alert('You have been logged out.'); 
+    updateLoginStateUI();
+    alert('You have been logged out.');
 }
 
-function openAuthModal() {
-    DOM.authError.textContent = '';
-    DOM.authError.style.display = 'none';
-    DOM.authModal.classList.add('active');
-}
-
-function closeAuthModal() {
-    DOM.authModal.classList.remove('active');
-}
-
-// --- DASHBOARD LOGIC ---
-async function loadDashboard() {
-    DOM.quizListContainer.innerHTML = '<p>Loading your quizzes...</p>';
-    const data = await apiCall('/api/quizzes');
-    if (data && data.quizzes) {
-        currentQuizzes = data.quizzes;
-        renderDashboard();
-    }
-}
-
-function renderDashboard() {
-    if (currentQuizzes.length === 0) {
-        DOM.quizListContainer.innerHTML = '<p>You haven\'t created any quizzes yet. Click "Create New Quiz" to start!</p>';
-        return;
-    }
-    DOM.quizListContainer.innerHTML = '';
-    currentQuizzes.forEach(quiz => {
-        const quizEl = document.createElement('div');
-        quizEl.className = 'quiz-item';
-        quizEl.innerHTML = `
-            <div>
-                <div class="quiz-item-title">${quiz.title}</div>
-                <div class="quiz-item-meta">Created: ${new Date(quiz.created_at).toLocaleDateString()}</div>
-            </div>
-            <div class="quiz-item-actions">
-                <button class="edit-quiz-btn" data-id="${quiz.id}"><i class="fas fa-edit"></i> Edit</button>
-                <button class="get-code-btn" data-id="${quiz.id}"><i class="fas fa-key"></i> Get Code</button>
-            </div>
-        `;
-        DOM.quizListContainer.appendChild(quizEl);
-    });
-}
-
-// --- EDITOR LOGIC ---
-function openEditorForNewQuiz() {
-    currentlyEditingQuizId = null;
-    DOM.editorTitle.textContent = "Create New Quiz";
-    DOM.quizTitleInput.value = "";
-    DOM.quizCodeDisplay.style.display = 'none';
-    resetEditorState(); // Use the full resetEditorState
-    showView('editor');
-}
-
-async function openEditorForExistingQuiz(quizId) {
-    const data = await apiCall(`/api/load-quiz/${quizId}`);
-    if (data && data.quiz) {
-        currentlyEditingQuizId = quizId;
-        const quizData = data.quiz;
-        // Find the title from the dashboard list
-        const quizInfo = currentQuizzes.find(q => q.id === quizId);
-        DOM.editorTitle.textContent = `Editing: ${quizInfo.title}`;
-        DOM.quizTitleInput.value = quizInfo.title;
-
-        // Load the quiz data into the editor using the full resetEditorState
-        resetEditorState({ questions: quizData });
-
-        showView('editor');
-    }
-}
-
-async function handleSaveQuiz() { // This saves to the backend
-    const title = DOM.quizTitleInput.value.trim();
-    if (!title) {
-        alert("Please enter a title for your quiz.");
-        return;
-    }
-
-    // Use your existing logic to get questions from the editor UI
-    const questions = DataManager.getAllQuestions();
-
-    const endpoint = currentlyEditingQuizId ? `/api/update-quiz/${currentlyEditingQuizId}` : '/api/save-quiz';
-    const method = currentlyEditingQuizId ? 'PUT' : 'POST';
-    const body = { title: title, quiz_data: questions };
-
-    const result = await apiCall(endpoint, method, body);
-    if (result && result.success) {
-        alert(`Quiz saved successfully! Shareable Code: ${result.quiz_code}`);
-        DOM.quizCodeDisplay.innerHTML = `<strong>Share Code:</strong> ${result.quiz_code}`;
-        DOM.quizCodeDisplay.style.display = 'block';
-        currentlyEditingQuizId = result.quiz_id || currentlyEditingQuizId; // Update ID if new quiz
-        // After saving, we could redirect to the dashboard
-        // showView('dashboard'); 
-    }
-}
-
-// --------------- AI GENERATION FUNCTIONS ---------------
+// --------------- AI GENERATION FUNCTIONS ---------------\n
 function openAiModal() {
     if (!isLoggedIn()) {
-        openAuthModal(); 
+        authError.textContent = '';
+        authError.style.display = 'none';
+        authModal.classList.add('active');
         return;
     }
-    DOM.aiDocInput.value = '';
-    DOM.aiGenerationForm.style.display = 'block';
-    DOM.aiLoadingSpinner.style.display = 'none';
-    DOM.generateQuestionsBtn.disabled = false;
-    DOM.aiModal.classList.add('active');
+    aiDocInput.value = '';
+    aiGenerationForm.style.display = 'block';
+    aiLoadingSpinner.style.display = 'none';
+    generateQuestionsBtn.disabled = false;
+    aiModal.classList.add('active');
 }
 
 function closeAiModal() {
-    DOM.aiModal.classList.remove('active');
+    aiModal.classList.remove('active');
+}
+
+function closeAuthModal() {
+    authModal.classList.remove('active');
 }
 
 async function handleGenerateQuestions() {
-    if (DOM.aiDocInput.files.length === 0) {
+    if (aiDocInput.files.length === 0) {
         alert('Please select a PDF or TXT file to upload.');
         return;
     }
@@ -315,21 +177,21 @@ async function handleGenerateQuestions() {
     const token = localStorage.getItem('jwt_token');
     if (!token) {
         alert('Your session has expired. Please log in again.');
-        openAuthModal(); 
+        openAiModal();
         return;
     }
 
-    DOM.generateQuestionsBtn.disabled = true;
-    DOM.aiGenerationForm.style.display = 'none';
-    DOM.aiLoadingSpinner.style.display = 'block';
+    generateQuestionsBtn.disabled = true;
+    aiGenerationForm.style.display = 'none';
+    aiLoadingSpinner.style.display = 'block';
 
     const formData = new FormData();
-    formData.append('document', DOM.aiDocInput.files[0]);
-    formData.append('subject', DOM.aiSubject.value);
-    formData.append('grade', DOM.aiGrade.value);
-    formData.append('num_questions', DOM.aiNumQuestions.value);
-    formData.append('notes', DOM.aiNotes.value);
-    const selectedTypes = Array.from(document.querySelectorAll('input[name="aiQuestionType"]:checked')).map(cb => cb.value).join(', ');
+    formData.append('document', aiDocInput.files[0]);
+    formData.append('subject', aiSubject.value);
+    formData.append('grade', aiGrade.value);
+    formData.append('num_questions', aiNumQuestions.value);
+    formData.append('notes', aiNotes.value);
+    const selectedTypes = Array.from(document.querySelectorAll('input[name=\"aiQuestionType\"]:checked')).map(cb => cb.value).join(', ');
     formData.append('question_types', selectedTypes);
 
     try {
@@ -345,7 +207,7 @@ async function handleGenerateQuestions() {
             handleLogout();
             alert("Your session has expired. Please log in again.");
             closeAiModal();
-            openAuthModal(); 
+            authModal.classList.add('active');
             return;
         }
 
@@ -361,9 +223,11 @@ async function handleGenerateQuestions() {
             throw new Error('The AI did not return any valid questions.');
         }
 
-        // Remove initial blank question if it exists and is truly blank
+        // Remove initial blank question
         const currentQuestions = DataManager.getAllQuestions();
         if (currentQuestions.length === 1 && isQuestionEffectivelyBlank(currentQuestions[0])) {
+            console.log("Initial blank question found. Removing it before appending new questions.");
+            // This removes the single blank question from the data store.
             DataManager.removeQuestion(currentQuestions[0].id);
         }
 
@@ -387,7 +251,6 @@ async function handleGenerateQuestions() {
         // Step 4: Update the rest of the UI
         updateSaveButtonState();
         updatePreviewSelectDropdown();
-        saveEditorStateToLocalStorage();
         alert(`Successfully added ${newQuestions.length} new question(s)!`);
         closeAiModal();
 
@@ -395,28 +258,17 @@ async function handleGenerateQuestions() {
         console.error('Error generating questions:', error);
         alert(`Failed to generate questions: ${error.message}`);
     } finally {
-        DOM.generateQuestionsBtn.disabled = false;
-        DOM.aiGenerationForm.style.display = 'block';
-        DOM.aiLoadingSpinner.style.display = 'none';
+        generateQuestionsBtn.disabled = false;
+        aiGenerationForm.style.display = 'block';
+        aiLoadingSpinner.style.display = 'none';
     }
 }
 
 
 // --------------- HELPER FUNCTIONS ---------------\n
 function generateFilename() {
-    const subject = DOM.subjectInput.value.trim().replace(/[^a-zA-Z0-9]+/g, '-') || 'subject';
-    const grade = DOM.gradeInput.value.trim().replace(/[^a-zA-Z0-9]+/g, '') || 'grade';
-    const identifier = DOM.setNameInput.value.trim().replace(/[^a-zA-Z0-9]+/g, '-') || 'set';
-    let filenameParts = [subject];
-    if (grade && grade.toLowerCase() !== 'unknown') {
-        filenameParts.push(`grade${grade}`);
-    }
-    if (identifier && identifier.toLowerCase() !== 'unknown' && identifier.toLowerCase() !== 'set') {
-        filenameParts.push(identifier);
-    }
-    let filename = filenameParts.filter(Boolean).join('_') || 'questions';
-    filename = filename.replace(/_+$/, '');
-    filename = filename.toLowerCase();
+    const title = DOM.quizTitleInput.value.trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]+/g, '') || 'quiz';
+    let filename = title.toLowerCase();
     return `${filename}.json`;
 }
 
@@ -439,55 +291,6 @@ function isQuestionEffectivelyBlank(q) {
     return isTextBlank && areOptionsBlank && isAnswerBlank && isRationaleBlank && isHintBlank;
 }
 
-// --------------- FILE HANDLING FUNCTIONS ---------------\n
-async function handleFileLoad(event) {
-    const files = event.target.files;
-    if (files.length === 0) return;
-    if (!confirm(`Are you sure you want to load ${files.length} file(s)? This will replace the current editor content.`)) {
-         DOM.hiddenFileInput.value = '';
-         return;
-    }
-    const fileReadPromises = files.map(file => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = e => {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    const questions = Array.isArray(data) ? data : (data.questions || []);
-                    resolve({ questions, metadata: data.metadata || {}, filename: file.name });
-                } catch (error) {
-                    console.error(`Error parsing ${file.name}:`, error);
-                    resolve(null);
-                }
-            };
-            reader.onerror = error => reject(error);
-            reader.readAsText(file);
-        });
-    });
-
-    const results = await Promise.allSettled(fileReadPromises);
-    const compiledQuestions = [];
-    let firstFileMetadata = null;
-    results.forEach(result => {
-        if (result.status === 'fulfilled' && result.value) {
-            compiledQuestions.push(...result.value.questions);
-            if (!firstFileMetadata) firstFileMetadata = result.value.metadata;
-        }
-    });
-
-    if (compiledQuestions.length === 0) {
-        alert("No valid questions found in the selected file(s).");
-        DOM.hiddenFileInput.value = '';
-        return;
-    }
-
-    const questionsWithNewIds = compiledQuestions.map(q => ({ ...q, id: DataManager.generateNewId() }));
-    resetEditorState({ metadata: firstFileMetadata || {}, questions: questionsWithNewIds });
-    alert(`Successfully loaded and compiled ${questionsWithNewIds.length} question(s).`);
-    DOM.hiddenFileInput.value = '';
-}
-
-
 // --------------- STATE MANAGEMENT & UI UPDATES ---------------\n
 function addQuestion() {
     const newQuestionId = DataManager.generateNewId();
@@ -496,7 +299,6 @@ function addQuestion() {
     UIRenderer.renderQuestionBlock(newQuestionData);
     updateSaveButtonState();
     updatePreviewSelectDropdown(newQuestionId);
-    saveEditorStateToLocalStorage();
 }
 
 function removeQuestion(button) {
@@ -508,7 +310,6 @@ function removeQuestion(button) {
             UIRenderer.removeQuestionBlock(questionBlock);
             updateSaveButtonState();
             updatePreviewSelectDropdown(questionId);
-            saveEditorStateToLocalStorage();
         }
     } else {
         alert("You must have at least one question.");
@@ -527,7 +328,6 @@ function addOption(button) {
     UIRenderer.updateAnswerUI(questionBlock, questionData.answer);
     updateSaveButtonState();
     if (DOM.previewQuestionSelect.value === questionId) updateQuestionPreview(questionId);
-    saveEditorStateToLocalStorage();
 }
 
 function removeOption(button) {
@@ -537,7 +337,7 @@ function removeOption(button) {
     const optionItem = button.closest('.option-item');
     const index = Array.from(optionItem.parentNode.children).indexOf(optionItem);
     if (index === -1 || !questionData || !questionData.Options || questionData.Options.length <= 1) return;
-
+    
     questionData.Options.splice(index, 1);
     // Basic answer cleanup
     if (questionData.type === 'single' || questionData.type === 'multi-select' || questionData.type === 'ordering') {
@@ -548,7 +348,6 @@ function removeOption(button) {
     UIRenderer.updateAnswerUI(questionBlock, questionData.answer);
     updateSaveButtonState();
     if (DOM.previewQuestionSelect.value === questionId) updateQuestionPreview(questionId);
-    saveEditorStateToLocalStorage();
 }
 
 function handleQuestionTypeChange(event) {
@@ -571,7 +370,6 @@ function handleQuestionTypeChange(event) {
     UIRenderer.updateRemoveOptionButtons(questionBlock);
     updateSaveButtonState();
     if (DOM.previewQuestionSelect.value === questionId) updateQuestionPreview(questionId);
-    saveEditorStateToLocalStorage();
 }
 
 function handleQuestionBlockInput(event) {
@@ -587,18 +385,16 @@ function handleQuestionBlockInput(event) {
         }
         updateSaveButtonState();
         if (DOM.previewQuestionSelect.value === questionId) updateQuestionPreview(questionId);
-        saveEditorStateToLocalStorage();
     }, 0);
 }
 
 function updateSaveButtonState() {
-    // Ensure DOM.subjectInput and DOM.gradeInput exist before passing them
-    const allValid = Validation.validateAll(DOM.questionsContainer, DOM.subjectInput, DOM.gradeInput);
+    const allValid = Validation.validateAll(DOM.questionsContainer, DOM.quizTitleInput);
     UIRenderer.updateSaveButtonState(allValid);
 }
 
-function handleSaveQuestions() { // This downloads a JSON file
-    if (!Validation.validateAll(DOM.questionsContainer, DOM.subjectInput, DOM.gradeInput)) {
+function handleSaveQuestions() {
+    if (!Validation.validateAll(DOM.questionsContainer, DOM.quizTitleInput)) {
         alert("Please fix the errors before saving.");
         return;
     }
@@ -635,32 +431,17 @@ function updateQuestionPreview(questionId = null) {
     }
 }
 
-function resetEditorState(newState = null) {
-    localStorage.removeItem('quizEditorState_v1'); // Clear old state
-    if (newState && newState.questions) {
-        DataManager.setAllQuestions(newState.questions);
-        DOM.subjectInput.value = newState.metadata.subject || '';
-        DOM.gradeInput.value = newState.metadata.grade || '';
-        DOM.setNameInput.value = newState.metadata.setName || '';
-    } else {
-        DataManager.setAllQuestions([]);
-        DOM.subjectInput.value = '';
-        DOM.gradeInput.value = '';
-        DOM.setNameInput.value = '';
-    }
+function resetEditorState() {
+    DataManager.setAllQuestions([]);
+    DOM.quizTitleInput.value = '';
+
     DOM.questionsContainer.innerHTML = '';
-    const currentQuestions = DataManager.getAllQuestions();
-    if (currentQuestions.length === 0) {
-        addQuestion();
-    } else {
-        currentQuestions.forEach(q => {
-            const block = UIRenderer.renderQuestionBlock(q);
-            UIRenderer.updateRemoveOptionButtons(block);
-        });
-    }
+    
+    // Always start a new quiz with one blank question
+    addQuestion();
+    
     updatePreviewSelectDropdown();
     updateSaveButtonState();
-    saveEditorStateToLocalStorage();
 }
 
 function handleNewQuiz() {
@@ -669,53 +450,14 @@ function handleNewQuiz() {
     }
 }
 
-function saveEditorStateToLocalStorage() {
-    try {
-        const stateToSave = {
-            version: 1,
-            metadata: { subject: DOM.subjectInput.value, grade: DOM.gradeInput.value, setName: DOM.setNameInput.value },
-            questions: DataManager.getAllQuestions()
-        };
-        localStorage.setItem('quizEditorState_v1', JSON.stringify(stateToSave));
-    } catch (e) {
-        console.error("Failed to save state to localStorage:", e);
-    }
-}
-
-
-// --- EVENT LISTENERS ---
+// --------------- EVENT LISTENERS ---------------\n
 function bindEventListeners() {
-    // Auth
-    DOM.loginBtn.addEventListener('click', handleLogin);
-    DOM.registerBtn.addEventListener('click', handleRegister);
-
-    // Dashboard
-    DOM.logoutBtn.addEventListener('click', handleLogout); // Dashboard logout
-    DOM.createNewQuizBtn.addEventListener('click', openEditorForNewQuiz);
-    DOM.quizListContainer.addEventListener('click', (e) => {
-        if (e.target.closest('.edit-quiz-btn')) {
-            const id = e.target.closest('.edit-quiz-btn').dataset.id;
-            openEditorForExistingQuiz(id);
-        }
-        if (e.target.closest('.get-code-btn')) {
-            const id = e.target.closest('.get-code-btn').dataset.id;
-            alert(`Share this code with players: ${id}`);
-        }
-    });
-
-    // Editor
-    DOM.backToDashboardBtn.addEventListener('click', () => showView('dashboard'));
-    DOM.logoutBtnEditor.addEventListener('click', handleLogout); // Editor logout
-    DOM.saveQuizBtn.addEventListener('click', handleSaveQuiz); // Save to backend
+    // Original Listeners
     DOM.addQuestionBtn.addEventListener('click', addQuestion);
+    DOM.downloadQuizBtn.addEventListener('click', handleSaveQuestions);
+    const newQuizBtn = document.getElementById('newQuizBtn');
+    if(newQuizBtn) newQuizBtn.addEventListener('click', handleNewQuiz);
 
-    // NEW: Editor specific event listeners (from second file)
-    if (DOM.saveQuestionsBtn) DOM.saveQuestionsBtn.addEventListener('click', handleSaveQuestions); // Download JSON
-    if (DOM.newQuizBtn) DOM.newQuizBtn.addEventListener('click', handleNewQuiz);
-    if (DOM.loadFileBtn && DOM.hiddenFileInput) {
-        DOM.loadFileBtn.addEventListener('click', () => DOM.hiddenFileInput.click());
-        DOM.hiddenFileInput.addEventListener('change', handleFileLoad);
-    }
     DOM.previewQuestionSelect.addEventListener('change', () => updateQuestionPreview());
     DOM.questionsContainer.addEventListener('click', (event) => {
         if (event.target.closest('.remove-question-btn')) removeQuestion(event.target.closest('.remove-question-btn'));
@@ -728,54 +470,30 @@ function bindEventListeners() {
     DOM.questionsContainer.addEventListener('input', (event) => {
         if (event.target.closest('.question-block')) handleQuestionBlockInput(event);
     });
-    // Ensure these elements exist before adding listeners
-    if (DOM.subjectInput) DOM.subjectInput.addEventListener('input', () => { updateSaveButtonState(); saveEditorStateToLocalStorage(); });
-    if (DOM.gradeInput) DOM.gradeInput.addEventListener('input', () => { updateSaveButtonState(); saveEditorStateToLocalStorage(); });
-    if (DOM.setNameInput) DOM.setNameInput.addEventListener('input', () => { saveEditorStateToLocalStorage(); });
+    DOM.quizTitleInput.addEventListener('input', () => { updateSaveButtonState(); });
 
-    // NEW: AI & Auth Modal Listeners (from second file)
-    if (DOM.aiGenerateBtn) DOM.aiGenerateBtn.addEventListener('click', openAiModal);
-    if (DOM.closeAiModalBtn) DOM.closeAiModalBtn.addEventListener('click', closeAiModal);
-    if (DOM.aiModal) DOM.aiModal.addEventListener('click', (e) => { if (e.target === DOM.aiModal) closeAiModal(); });
-    if (DOM.generateQuestionsBtn) DOM.generateQuestionsBtn.addEventListener('click', handleGenerateQuestions);
-
-    // Auth modal listeners (these are for the modal that pops up when AI generation requires login)
-    if (DOM.closeAuthModalBtn) DOM.closeAuthModalBtn.addEventListener('click', closeAuthModal);
-    if (DOM.authModal) DOM.authModal.addEventListener('click', (e) => { if (e.target === DOM.authModal) closeAuthModal(); });
+    // --- NEW: AI & Auth Modal Listeners ---
+    if (aiGenerateBtn) aiGenerateBtn.addEventListener('click', openAiModal);
+    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+    if (closeAiModalBtn) closeAiModalBtn.addEventListener('click', closeAiModal);
+    if (aiModal) aiModal.addEventListener('click', (e) => { if (e.target === aiModal) closeAiModal(); });
+    if (generateQuestionsBtn) generateQuestionsBtn.addEventListener('click', handleGenerateQuestions);
+    
+    if (loginBtn) loginBtn.addEventListener('click', handleLogin);
+    if (registerBtn) registerBtn.addEventListener('click', handleRegister);
+    if (closeAuthModalBtn) closeAuthModalBtn.addEventListener('click', closeAuthModal);
+    if (authModal) authModal.addEventListener('click', (e) => { if (e.target === authModal) closeAuthModal(); });
 }
 
-// --- INITIALIZATION ---
+// --------------- INITIALIZATION ---------------\n
 document.addEventListener('DOMContentLoaded', () => {
     console.log("Editor DOM fully loaded. Initializing...");
     bindEventListeners();
-
-    // Check for JWT token and show appropriate view (Dashboard or Auth)
-    const token = localStorage.getItem('jwt_token');
-    if (token) {
-        showView('dashboard');
-    } else {
-        showView('auth');
-    }
-
-    // Initialize editor state from localStorage or add a new question
-    const savedState = localStorage.getItem('quizEditorState_v1');
-    if (savedState) {
-        try {
-            const state = JSON.parse(savedState);
-            if (state && state.questions) {
-                resetEditorState(state);
-            } else {
-                addQuestion(); // If state is malformed or empty questions, start fresh
-            }
-        } catch (e) {
-            console.error("Failed to parse localStorage data:", e);
-            addQuestion(); // On parse error, start fresh
-        }
-    } else {
-        addQuestion(); // No saved state, start fresh
-    }
-
+    
+    // The editor now always starts fresh, without loading from local storage.
+    addQuestion();
+    
     updateSaveButtonState();
     updatePreviewSelectDropdown();
-    updateLoginStateUI(); // Ensure AI modal's logout button state is correct
+    updateLoginStateUI();
 });

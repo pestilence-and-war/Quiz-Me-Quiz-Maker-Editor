@@ -3,90 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quiz Me - Editor</title>
+    <title>Quiz Question Editor</title>
     <link rel="stylesheet" href="css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
+    <div class="editor-container">
+        <h1>Quiz Question Editor</h1>
 
-    <!-- ====================================================== -->
-    <!-- VIEW 1: AUTHENTICATION MODAL (Initially Visible)       -->
-    <!-- ====================================================== -->
-    <div id="authView" class="view-container">
-        <div class="auth-modal-content">
-            <h2 id="authTitle">Login to Your Account</h2>
-            <div id="authForm">
-                <div class="form-group"><label for="authEmail">Email:</label><input type="email" id="authEmail" required></div>
-                <div class="form-group"><label for="authPassword">Password:</label><input type="password" id="authPassword" required></div>
-                <p id="authError" style="color: var(--danger); display: none;"></p>
-                <div class="auth-buttons">
-                    <button type="button" id="loginBtn">Login</button>
-                    <button type="button" id="registerBtn" class="secondary-button">Register</button>
-                </div>
+        <h2>Quiz Details</h2>
+        <div class="metadata">
+            <div class="form-group">
+                <label for="quizTitle" class="required"><i class="fas fa-heading"></i> Quiz Title:</label>
+                <input type="text" id="quizTitle" placeholder="e.g., Chapter 5 Photosynthesis Review">
             </div>
         </div>
-    </div>
 
-    <!-- ====================================================== -->
-    <!-- VIEW 2: DASHBOARD (Initially Hidden)                   -->
-    <!-- ====================================================== -->
-    <div id="dashboardView" class="view-container" style="display: none;">
-        <header class="app-header">
-            <h1>My Quizzes Dashboard</h1>
-            <button id="logoutBtn" class="secondary-button"><i class="fas fa-sign-out-alt"></i> Logout</button>
-        </header>
-        <div class="dashboard-controls">
-            <button id="createNewQuizBtn"><i class="fas fa-plus"></i> Create New Quiz</button>
-        </div>
-        <div id="quizListContainer">
-            <!-- Quizzes will be dynamically inserted here -->
-            <p>Loading your quizzes...</p>
-        </div>
-    </div>
+        <h2>Questions</h2>
+        <div id="questionsContainer"></div>
+        <button type="button" id="addQuestionBtn"><i class="fas fa-plus"></i> Add Question</button>
 
-    <!-- ====================================================== -->
-    <!-- VIEW 3: EDITOR (Initially Hidden)                      -->
-    <!-- ====================================================== -->
-    <div id="editorView" class="view-container" style="display: none;">
-        <header class="app-header">
-            <h1 id="editorTitle">Quiz Editor</h1>
-            <div>
-                <button id="backToDashboardBtn" class="secondary-button"><i class="fas fa-arrow-left"></i> Back to Dashboard</button>
-                <button id="logoutBtnEditor" class="secondary-button"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        <div class="quiz-preview-section">
+            <h2>Quiz App Preview</h2>
+            <div class="preview-controls">
+                <label for="previewQuestionSelect"><i class="fas fa-eye"></i> Preview Question:</label>
+                <select id="previewQuestionSelect"></select>
             </div>
-        </header>
-
-        <div class="editor-container">
-            <h2>Question Set Details</h2>
-            <div class="metadata">
-                <div class="form-group">
-                    <label for="quizTitle" class="required"><i class="fas fa-heading"></i> Quiz Title:</label>
-                    <input type="text" id="quizTitle" placeholder="e.g., Chapter 5: Photosynthesis">
-                </div>
-                <!-- Other metadata fields can be added back here if needed -->
-            </div>
-
-            <h2>Questions</h2>
-            <div id="questionsContainer"></div>
-            <button type="button" id="addQuestionBtn"><i class="fas fa-plus"></i> Add Question</button>
-
-            <div class="quiz-preview-section">
-                <h2>Quiz App Preview</h2>
-                <div class="preview-controls">
-                    <label for="previewQuestionSelect"><i class="fas fa-eye"></i> Preview Question:</label>
-                    <select id="previewQuestionSelect"></select>
-                </div>
-                <div class="quiz-preview-area" id="questionPreviewArea">
-                    <p>Select a question to see a preview.</p>
-                </div>
-            </div>
-
-            <div class="editor-actions">
-                <button type="button" id="saveQuizBtn"><i class="fas fa-save"></i> Save Quiz</button>
-                <p id="quizCodeDisplay" style="display:none; margin-top: 15px;"></p>
+            <div class="quiz-preview-area" id="questionPreviewArea">
+                <p style="text-align: center; color: var(--text-light);\">Select a question above to see how it looks.</p>
             </div>
         </div>
+
+        <button type="button" id="downloadQuizBtn" disabled><i class="fas fa-file-download"></i> Download as JSON</button>
+        <button type="button" id="newQuizBtn" class="secondary-button"><i class="fas fa-file"></i> New Quiz</button>
+        <!-- Button Group for AI, Logout, and Load -->
+        <button type="button" id="logoutBtn" style="display: none;" class="secondary-button"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        <button type="button" id="aiGenerateBtn"><i class="fas fa-magic"></i> Generate with AI</button>
     </div>
 
     <!-- AI Generation Modal -->
@@ -117,6 +70,21 @@
             </fieldset>
             <div id="aiLoadingSpinner" class="spinner-container" style="display: none;">
                 <div class="spinner"></div><p>Generating questions... this may take a moment.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Authentication Modal -->
+    <div id="authModal" class="ai-modal-overlay">
+        <div class="ai-modal-content">
+            <span id="closeAuthModalBtn" class="ai-modal-close">×</span>
+            <h2 id="authTitle">Login to Continue</h2>
+            <div id="authForm">
+                <div class="form-group"><label for="authEmail">Email:</label><input type="email" id="authEmail" required></div>
+                <div class="form-group"><label for="authPassword">Password:</label><input type="password" id="authPassword" required></div>
+                <p id="authError" style="color: var(--danger); display: none;"></p>
+                <button type="button" id="loginBtn">Login</button>
+                <button type="button" id="registerBtn" class="secondary-button">Register</button>
             </div>
         </div>
     </div>

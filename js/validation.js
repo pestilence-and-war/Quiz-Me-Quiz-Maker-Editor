@@ -153,26 +153,16 @@ const Validation = (function() {
 
     // Validates the metadata fields
     // Returns true if valid, false otherwise. Applies .invalid class to invalid fields.
-    function validateMetadata(subjectInput, gradeInput) {
+    function validateTitle(quizTitleInput) {
         let isValid = true;
         // Reset styles should be handled by the caller (e.g., validateAll) for metadata inputs
 
-        if (subjectInput.value.trim() === '') {
-            subjectInput.classList.add(CSS_CLASSES.INVALID);
+        if (quizTitleInput.value.trim() === '') {
+            quizTitleInput.classList.add(CSS_CLASSES.INVALID);
             isValid = false;
         } else {
-             subjectInput.classList.remove(CSS_CLASSES.INVALID);
+             quizTitleInput.classList.remove(CSS_CLASSES.INVALID);
         }
-
-        if (gradeInput.value.trim() === '') {
-            gradeInput.classList.add(CSS_CLASSES.INVALID);
-            isValid = false;
-        } else {
-             gradeInput.classList.remove(CSS_CLASSES.INVALID);
-        }
-
-        // setNameInput is not strictly required based on your current logic,
-        // so it doesn't need validation here for saving.
 
         return isValid;
     }
@@ -181,16 +171,14 @@ const Validation = (function() {
     // Validates all questions and metadata in the UI
     // Returns true if the entire form is valid for saving, false otherwise.
     // Applies/removes .invalid classes across the form.
-    function validateAll(questionsContainer, subjectInput, gradeInput) {
+    function validateAll(questionsContainer, quizTitleInput) {
         let allValid = true;
 
         // 1. Validate metadata
         // Reset metadata styles here before validation
-        resetValidationStyles(subjectInput);
-        resetValidationStyles(gradeInput);
-        // No need to reset setNameInput as it's not validated for requiredness
-
-        if (!validateMetadata(subjectInput, gradeInput)) {
+        resetValidationStyles(quizTitleInput);
+        
+        if (!validateTitle(quizTitleInput)) {
              allValid = false;
         }
 

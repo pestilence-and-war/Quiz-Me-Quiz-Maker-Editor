@@ -10,12 +10,10 @@ const UIRenderer = (function() {
     const DOM = {
         questionsContainer: document.getElementById('questionsContainer'),
         addQuestionBtn: document.getElementById('addQuestionBtn'), // Add button reference here
-        saveQuestionsBtn: document.getElementById('saveQuestionsBtn'),
+        downloadQuizBtn: document.getElementById('downloadQuizBtn'),
         previewQuestionSelect: document.getElementById('previewQuestionSelect'),
         questionPreviewArea: document.getElementById('questionPreviewArea'),
-        subjectInput: document.getElementById('subject'),
-        gradeInput: document.getElementById('grade'),
-        setNameInput: document.getElementById('setName'),
+        quizTitleInput: document.getElementById('quizTitle'),
     };
 
     const QUESTION_TYPES = { // Define types locally for clarity
@@ -27,7 +25,7 @@ const UIRenderer = (function() {
 
     // Helper function to get a specific question block element by its internal ID
     function getQuestionBlockElement(questionId) {
-        return DOM.questionsContainer.querySelector(`.question-block[data-question-id="${questionId}"]`);
+        return DOM.questionsContainer.querySelector(`.question-block[data-question-id=\"${questionId}\"]`);
     }
 
      // Helper function to get data from a single question block element in the UI
@@ -190,7 +188,7 @@ const UIRenderer = (function() {
             input.type = 'text';
             input.classList.add('option-input');
             input.placeholder = 'Option Text';
-            input.value = optionText.replace(/"/g, '&quot;');
+            input.value = optionText.replace(/\"/g, '"');
 
             const removeButton = document.createElement('button');
             removeButton.type = 'button';
@@ -241,7 +239,7 @@ const UIRenderer = (function() {
         if (type === QUESTION_TYPES.FILL_IN) {
             formGroup.innerHTML = `
                 <label for="correctAnswer-${questionBlockId}" class="required"><i class="fas fa-check"></i> Correct Answer:</label>
-                <input type="text" class="correctAnswer" id="correctAnswer-${questionBlockId}" placeholder="Enter the exact correct answer" value="${(answerData || '').replace(/"/g, '&quot;')}">
+                <input type="text" class="correctAnswer" id="correctAnswer-${questionBlockId}" placeholder="Enter the exact correct answer" value="${(answerData || '').replace(/\"/g, '"')}">
             `;
             answerSection.appendChild(formGroup);
 
@@ -297,7 +295,7 @@ const UIRenderer = (function() {
             input.type = isMulti ? 'checkbox' : 'radio';
             input.id = inputId;
             input.name = `answer-${questionBlockId}`; // Use block ID for radio group name
-            input.value = option.replace(/"/g, '&quot;');
+            input.value = option.replace(/\"/g, '"');
             if (isChecked) {
                 input.checked = true;
             }
@@ -348,7 +346,7 @@ const UIRenderer = (function() {
             const div = document.createElement('div');
 
             const span = document.createElement('span');
-            span.textContent = item.value.replace(/"/g, '&quot;');
+            span.textContent = item.value.replace(/\"/g, '"');
 
             const input = document.createElement('input');
             input.type = 'number';
@@ -459,7 +457,7 @@ const UIRenderer = (function() {
 
     // Function to update the enabled/disabled state of the save button
     function updateSaveButtonState(isValid) {
-        DOM.saveQuestionsBtn.disabled = !isValid;
+        DOM.downloadQuizBtn.disabled = !isValid;
     }
 
     // Public API
