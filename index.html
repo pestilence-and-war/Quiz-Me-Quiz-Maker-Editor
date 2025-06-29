@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <div class="editor-container">
+    <div class="editor-container" id="editorView" style="display: none;">
         <h1>Quiz Question Editor</h1>
 
         <h2>Quiz Details</h2>
@@ -31,7 +31,7 @@
                 <select id="previewQuestionSelect"></select>
             </div>
             <div class="quiz-preview-area" id="questionPreviewArea">
-                <p style="text-align: center; color: var(--text-light);\">Select a question above to see how it looks.</p>
+                <p style="text-align: center; color: var(--text-light);">Select a question above to see how it looks.</p>
             </div>
         </div>
 
@@ -74,10 +74,9 @@
         </div>
     </div>
 
-    <!-- Authentication Modal -->
-    <div id="authModal" class="ai-modal-overlay">
-        <div class="ai-modal-content">
-            <span id="closeAuthModalBtn" class="ai-modal-close">×</span>
+    <!-- Authentication View -->
+    <div id="authView" class="view-container" style="display: none;">
+        <div class="auth-modal-content">
             <h2 id="authTitle">Login to Continue</h2>
             <div id="authForm">
                 <div class="form-group"><label for="authEmail">Email:</label><input type="email" id="authEmail" required></div>

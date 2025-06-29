@@ -5,7 +5,6 @@
 // and coordinating calls between other modules (DataManager, UIRenderer, Validation, PreviewRenderer).
 
 const DOM = UIRenderer.DOM;
-
 // --- AI & Auth Modal Elements ---
 const aiGenerateBtn = document.getElementById('aiGenerateBtn');
 const logoutBtn = document.getElementById('logoutBtn');
@@ -30,6 +29,20 @@ const registerBtn = document.getElementById('registerBtn');
 const authError = document.getElementById('authError');
 
 const API_BASE_URL = 'https://quiz-backend-613338700440.us-central1.run.app';
+
+// --- View Management Function ---
+function switchView(viewToShow) {
+    // Hide all major views
+    editorView.style.display = 'none';
+    authModal.classList.remove('active');
+
+    // Show the requested view
+    if (viewToShow === 'editor') {
+        editorView.style.display = 'block';
+    } else if (viewToShow === 'auth') {
+        authModal.classList.add('active');
+    }
+}
 
 // --------------- AUTHENTICATION FUNCTIONS ---------------\n
 function isLoggedIn() {
@@ -81,12 +94,9 @@ async function handleLogin() {
             // Step 5: If it exists, save it to localStorage
             localStorage.setItem('jwt_token', data.access_token);
             
-            // Step 6: Close the login modal and update the UI
-            closeAuthModal(); // Use the dedicated close function
-            updateLoginStateUI();
-            
-            // Step 7: Proceed to the AI modal
-            openAiModal(); 
+            // Step 6: The user is now authenticated. Re-run the initialization logic,
+            // which will now detect the login and show the editor.
+            initializeApp();
         } else {
             // This is a failsafe for an unexpected server response
             throw new Error('Login succeeded but did not receive a token.');
@@ -142,6 +152,8 @@ async function handleRegister() {
 function handleLogout() {
     localStorage.removeItem('jwt_token');
     updateLoginStateUI();
+    resetEditorState();
+    switchView('auth');
     alert('You have been logged out.');
 }
 
@@ -434,11 +446,7 @@ function updateQuestionPreview(questionId = null) {
 function resetEditorState() {
     DataManager.setAllQuestions([]);
     DOM.quizTitleInput.value = '';
-
     DOM.questionsContainer.innerHTML = '';
-    
-    // Always start a new quiz with one blank question
-    addQuestion();
     
     updatePreviewSelectDropdown();
     updateSaveButtonState();
@@ -447,7 +455,73 @@ function resetEditorState() {
 function handleNewQuiz() {
     if (confirm("Are you sure you want to start a new quiz? Any unsaved changes will be lost.")) {
         resetEditorState();
+        addQuestion();
     }
+}
+
+// --------------- NEW VIEW MANAGEMENT & AUTH LOGIC ---------------\\
+
+// Get references to our two main views
+const editorView = document.getElementById('editorView');
+const authView = document.getElementById('authView');
+
+/**
+ * The main view controller. Hides all views then shows the one requested.
+ * @param {'editor' | 'auth'} viewName The name of the view to show.
+ */
+function switchView(viewName) {
+    // 1. Hide all views
+    editorView.style.display = 'none';
+    authView.style.display = 'none';
+
+    // 2. Show the requested view
+    if (viewName === 'editor') {
+        editorView.style.display = 'block';
+    } else if (viewName === 'auth') {
+        authView.style.display = 'block';
+    }
+}
+
+async function handleLogin() {
+    const email = authEmail.value;
+    const password = authPassword.value;
+    authError.style.display = 'none';
+
+    if (!email || !password) {
+        authError.textContent = "Email and password are required.";
+        authError.style.display = 'block';
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.message || 'Invalid credentials');
+        }
+
+        if (data.access_token) {
+            localStorage.setItem('jwt_token', data.access_token);
+            initializeApp(); // Re-run initialization to show the correct view
+        } else {
+            throw new Error('Login succeeded but did not receive a token.');
+        }
+    } catch (error) {
+        authError.textContent = error.message;
+        authError.style.display = 'block';
+    }
+}
+
+function handleLogout() {
+    localStorage.removeItem('jwt_token');
+    resetEditorState(); // Clear the quiz data
+    initializeApp(); // Re-run initialization to show the login screen
+    alert('You have been logged out.');
 }
 
 // --------------- EVENT LISTENERS ---------------\n
@@ -481,19 +555,35 @@ function bindEventListeners() {
     
     if (loginBtn) loginBtn.addEventListener('click', handleLogin);
     if (registerBtn) registerBtn.addEventListener('click', handleRegister);
-    if (closeAuthModalBtn) closeAuthModalBtn.addEventListener('click', closeAuthModal);
-    if (authModal) authModal.addEventListener('click', (e) => { if (e.target === authModal) closeAuthModal(); });
 }
 
-// --------------- INITIALIZATION ---------------\n
+// --------------- INITIALIZATION ---------------\\
+
+function initializeApp() {
+    console.log("Running app initialization...");
+    updateLoginStateUI(); // Always update logout button visibility
+
+    if (isLoggedIn()) {
+        console.log("User is logged in. Showing editor view.");
+        // User is logged in. Show the editor.
+        switchView('editor');
+        
+        // Initialize the editor with a blank question if it's empty
+        if (DataManager.getAllQuestions().length === 0) {
+            addQuestion();
+        }
+        updateSaveButtonState();
+        updatePreviewSelectDropdown();
+
+    } else {
+        // User is not logged in. Show the login screen.
+        console.log("User is not logged in. Showing auth view.");
+        switchView('auth');
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("Editor DOM fully loaded. Initializing...");
+    console.log("Editor DOM fully loaded. Binding event listeners and initializing...");
     bindEventListeners();
-    
-    // The editor now always starts fresh, without loading from local storage.
-    addQuestion();
-    
-    updateSaveButtonState();
-    updatePreviewSelectDropdown();
-    updateLoginStateUI();
+    initializeApp(); // Run the main app logic
 });

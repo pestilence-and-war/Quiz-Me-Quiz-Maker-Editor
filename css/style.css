@@ -632,20 +632,6 @@ button:disabled {
     position: relative;
 }
 
-.ai-modal-close {
-    position: absolute;
-    top: 10px;
-    right: 20px;
-    font-size: 2rem;
-    color: #aaa;
-    cursor: pointer;
-    line-height: 1;
-}
-
-.ai-modal-close:hover {
-    color: #333;
-}
-
 .ai-modal-content h2 {
     margin-top: 0;
     text-align: center;
