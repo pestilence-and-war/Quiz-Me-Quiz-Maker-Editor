@@ -7,7 +7,6 @@
 const DOM = UIRenderer.DOM;
 // --- AI & Auth Modal Elements ---
 const aiGenerateBtn = document.getElementById('aiGenerateBtn');
-const logoutBtn = document.getElementById('logoutBtn');
 // AI Modal
 const aiModal = document.getElementById('aiModal');
 const closeAiModalBtn = document.getElementById('closeAiModalBtn'); // Corrected ID from HTML
@@ -28,19 +27,34 @@ const loginBtn = document.getElementById('loginBtn');
 const registerBtn = document.getElementById('registerBtn');
 const authError = document.getElementById('authError');
 
+// --- Dashboard Elements ---
+const dashboardView = document.getElementById('dashboardView');
+const quizListContainer = document.getElementById('quizListContainer');
+const createNewQuizBtn = document.getElementById('createNewQuizBtn');
+const backToDashboardBtn = document.getElementById('backToDashboardBtn');
+const logoutBtnDashboard = document.getElementById('logoutBtnDashboard');
+const aiGenerateBtnDashboard = document.getElementById('aiGenerateBtnDashboard');
+
+// --- Renamed/Repurposed Elements ---
+const saveQuizBtn = document.getElementById('saveQuizBtn');
+const quizCodeDisplay = document.getElementById('quizCodeDisplay');
+
 const API_BASE_URL = 'https://quiz-backend-613338700440.us-central1.run.app';
 
 // --- View Management Function ---
 function switchView(viewToShow) {
     // Hide all major views
     editorView.style.display = 'none';
-    authModal.classList.remove('active');
+    authView.style.display = 'none';
+    dashboardView.style.display = 'none';
 
     // Show the requested view
-    if (viewToShow === 'editor') {
+    if (viewName === 'editor') {
         editorView.style.display = 'block';
-    } else if (viewToShow === 'auth') {
-        authModal.classList.add('active');
+    } else if (viewName === 'auth') {
+        authView.style.display = 'block';
+    } else if (viewName === 'dashboard') {
+        dashboardView.style.display = 'block';
     }
 }
 
@@ -50,10 +64,12 @@ function isLoggedIn() {
 }
 
 function updateLoginStateUI() {
-    if (isLoggedIn()) {
-        logoutBtn.style.display = 'inline-flex';
-    } else {
-        logoutBtn.style.display = 'none';
+    if (logoutBtnDashboard) {
+        if (isLoggedIn()) {
+            logoutBtnDashboard.style.display = 'inline-flex';
+        } else {
+            logoutBtnDashboard.style.display = 'none';
+        }
     }
 }
 
@@ -155,6 +171,106 @@ function handleLogout() {
     resetEditorState();
     switchView('auth');
     alert('You have been logged out.');
+}
+
+async function loadUserQuizzes() {
+    const token = localStorage.getItem('jwt_token');
+    if (!token) {
+        switchView('auth');
+        return;
+    }
+    
+    quizListContainer.innerHTML = '<p>Loading your quizzes...</p>';
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/quizzes`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+            throw new Error('Could not fetch quizzes.');
+        }
+
+        const data = await response.json();
+        renderQuizList(data.quizzes);
+
+    } catch (error) {
+        quizListContainer.innerHTML = `<p style="color: var(--danger);">Error loading quizzes: ${error.message}</p>`;
+    }
+}
+
+function renderQuizList(quizzes) {
+    quizListContainer.innerHTML = ''; // Clear loading message
+    if (!quizzes || quizzes.length === 0) {
+        quizListContainer.innerHTML = '<p>You haven\'t created any quizzes yet. Click "Create New Quiz" to start!</p>';
+        return;
+    }
+
+    quizzes.forEach(quiz => {
+        const quizItem = document.createElement('div');
+        quizItem.className = 'quiz-item';
+        quizItem.innerHTML = `
+            <div>
+                <div class="quiz-item-title">${quiz.title}</div>
+                <div class="quiz-item-details">Code: ${quiz.id} | Created: ${new Date(quiz.created_at).toLocaleDateString()}</div>
+            </div>
+            <div class="quiz-item-actions">
+                <button class="load-quiz-btn" data-quiz-id="${quiz.id}"><i class="fas fa-edit"></i> Edit</button>
+                <button class="share-quiz-btn" data-quiz-id="${quiz.id}"><i class="fas fa-share-alt"></i> Share</button>
+            </div>
+        `;
+        quizListContainer.appendChild(quizItem);
+    });
+}
+
+function handleCreateNewQuiz() {
+    resetEditorState();
+    addQuestion(); // Add a single blank question
+    switchView('editor');
+    quizCodeDisplay.style.display = 'none'; // Hide the code display for new quizzes
+}
+
+async function handleSaveQuiz() {
+    if (!Validation.validateAll(DOM.questionsContainer, DOM.quizTitleInput)) {
+        alert("Please fix the errors before saving.");
+        return;
+    }
+
+    saveQuizBtn.disabled = true;
+    saveQuizBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+    const token = localStorage.getItem('jwt_token');
+    const quizData = {
+        title: DOM.quizTitleInput.value,
+        quiz_data: DataManager.getAllQuestions()
+    };
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/save-quiz`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(quizData)
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.message || 'Failed to save quiz.');
+        }
+        
+        const result = await response.json();
+        quizCodeDisplay.querySelector('strong').textContent = result.quiz_code;
+        quizCodeDisplay.style.display = 'block';
+        alert(`Quiz saved successfully! Your quiz code is ${result.quiz_code}`);
+        
+    } catch(error) {
+        alert(`Error saving quiz: ${error.message}`);
+    } finally {
+        saveQuizBtn.disabled = false;
+        saveQuizBtn.innerHTML = '<i class="fas fa-save"></i> Save Quiz';
+    }
 }
 
 // --------------- AI GENERATION FUNCTIONS ---------------\n
@@ -528,7 +644,6 @@ function handleLogout() {
 function bindEventListeners() {
     // Original Listeners
     DOM.addQuestionBtn.addEventListener('click', addQuestion);
-    DOM.downloadQuizBtn.addEventListener('click', handleSaveQuestions);
     const newQuizBtn = document.getElementById('newQuizBtn');
     if(newQuizBtn) newQuizBtn.addEventListener('click', handleNewQuiz);
 
@@ -546,13 +661,52 @@ function bindEventListeners() {
     });
     DOM.quizTitleInput.addEventListener('input', () => { updateSaveButtonState(); });
 
-    // --- NEW: AI & Auth Modal Listeners ---
+    saveQuizBtn.addEventListener('click', handleSaveQuiz);
+    backToDashboardBtn.addEventListener('click', () => {
+        if(confirm("Are you sure? Any unsaved changes will be lost.")) {
+            switchView('dashboard');
+            loadUserQuizzes(); // Refresh the list
+        }
+    });
+
+    createNewQuizBtn.addEventListener('click', handleCreateNewQuiz);
+    logoutBtnDashboard.addEventListener('click', handleLogout);
+    aiGenerateBtnDashboard.addEventListener('click', openAiModal);
+
+    document.body.addEventListener('click', async (event) => {
+        if (event.target.closest('.load-quiz-btn')) {
+            const quizId = event.target.closest('.load-quiz-btn').dataset.quizId;
+            const response = await fetch(`${API_BASE_URL}/api/load-quiz/${quizId}`);
+            const data = await response.json();
+            if (data.success) {
+                resetEditorState();
+                // The /api/load-quiz endpoint returns the 'quiz_data' field directly.
+                const loadedQuestions = data.quiz; // This is the array of questions
+                const quizTitle = DOM.quizTitleInput.value; // The title is not returned by this endpoint, we get it from the list. We need to find it.
+
+                // Let's find the title from the quiz list in the DOM to populate the editor
+                const quizItem = event.target.closest('.quiz-item');
+                const titleElement = quizItem.querySelector('.quiz-item-title');
+                DOM.quizTitleInput.value = titleElement ? titleElement.textContent : 'Loaded Quiz';
+
+                DataManager.setAllQuestions(loadedQuestions);
+                // Re-render the editor from the loaded data
+                loadedQuestions.forEach(q => {
+                    UIRenderer.renderQuestionBlock(q);
+                });
+                updateSaveButtonState();
+                updatePreviewSelectDropdown();
+                switchView('editor');
+            } else {
+                alert('Failed to load quiz.');
+            }
+        }
+    });
+    // --- AI & Auth Modal Listeners ---
     if (aiGenerateBtn) aiGenerateBtn.addEventListener('click', openAiModal);
-    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
     if (closeAiModalBtn) closeAiModalBtn.addEventListener('click', closeAiModal);
     if (aiModal) aiModal.addEventListener('click', (e) => { if (e.target === aiModal) closeAiModal(); });
     if (generateQuestionsBtn) generateQuestionsBtn.addEventListener('click', handleGenerateQuestions);
-    
     if (loginBtn) loginBtn.addEventListener('click', handleLogin);
     if (registerBtn) registerBtn.addEventListener('click', handleRegister);
 }
@@ -566,15 +720,8 @@ function initializeApp() {
     if (isLoggedIn()) {
         console.log("User is logged in. Showing editor view.");
         // User is logged in. Show the editor.
-        switchView('editor');
-        
-        // Initialize the editor with a blank question if it's empty
-        if (DataManager.getAllQuestions().length === 0) {
-            addQuestion();
-        }
-        updateSaveButtonState();
-        updatePreviewSelectDropdown();
-
+        switchView('dashboard');
+        loadUserQuizzes();
     } else {
         // User is not logged in. Show the login screen.
         console.log("User is not logged in. Showing auth view.");

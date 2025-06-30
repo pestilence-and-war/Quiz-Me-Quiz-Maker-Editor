@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
+    <!-- Editor View -->
     <div class="editor-container" id="editorView" style="display: none;">
         <h1>Quiz Question Editor</h1>
 
@@ -35,11 +36,28 @@
             </div>
         </div>
 
-        <button type="button" id="downloadQuizBtn" disabled><i class="fas fa-file-download"></i> Download as JSON</button>
-        <button type="button" id="newQuizBtn" class="secondary-button"><i class="fas fa-file"></i> New Quiz</button>
-        <!-- Button Group for AI, Logout, and Load -->
-        <button type="button" id="logoutBtn" style="display: none;" class="secondary-button"><i class="fas fa-sign-out-alt"></i> Logout</button>
-        <button type="button" id="aiGenerateBtn"><i class="fas fa-magic"></i> Generate with AI</button>
+        <div class="editor-actions">
+            <button type="button" id="backToDashboardBtn" class="secondary-button"><i class="fas fa-arrow-left"></i> Back to Dashboard</button>
+            <!-- <button type="button" id="aiGenerateBtn"><i class="fas fa-magic"></i> Generate with AI</button> -->
+            <button type="button" id="saveQuizBtn" disabled><i class="fas fa-save"></i> Save Quiz</button>
+            <p id="quizCodeDisplay" style="display: none;">Saved! Share Code: <strong></strong></p>
+        </div>
+    </div>
+
+    <!-- Dashboard View -->
+    <div id="dashboardView" class="view-container" style="display: none;">
+        <div class="app-header">
+            <h1>My Quizzes</h1>
+            <button type="button" id="logoutBtnDashboard" class="secondary-button"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        </div>
+        <div class="dashboard-controls">
+            <button type="button" id="createNewQuizBtn"><i class="fas fa-plus"></i> Create New Quiz</button>
+            <button type="button" id="aiGenerateBtnDashboard"><i class="fas fa-magic"></i> Generate with AI</button>
+        </div>
+        <div id="quizListContainer">
+            <!-- Quiz items will be dynamically inserted here -->
+            <p>Loading your quizzes...</p>
+        </div>
     </div>
 
     <!-- AI Generation Modal -->
