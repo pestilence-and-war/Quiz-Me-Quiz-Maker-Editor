@@ -173,25 +173,36 @@ function handleLogout() {
     alert('You have been logged out.');
 }
 
-async function loadUserQuizzes() {
-    const token = localStorage.getItem('jwt_token');
+async function loadUserQuizzes(token) {
+    // This function now REQUIRES a token to be passed to it.
     if (!token) {
-        switchView('auth');
+        console.error("CRITICAL: loadUserQuizzes was called without a token. Returning to login.");
+        handleLogout(); // Log out to be safe
         return;
     }
-    
+
     quizListContainer.innerHTML = '<p>Loading your quizzes...</p>';
 
     try {
         const response = await fetch(`${API_BASE_URL}/api/quizzes`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: {
+                'Authorization': `Bearer ${token}` // Use the token passed into the function
+            }
         });
 
+        const data = await response.json(); // Always try to parse JSON for error messages
+
         if (!response.ok) {
-            throw new Error('Could not fetch quizzes.');
+            // If the token is expired or invalid, the server sends a 401 or 422.
+            if (response.status === 401 || response.status === 422) {
+                console.warn("Authorization failed. Token may be expired or invalid.");
+                handleLogout(); // Force a logout, which will show the login screen.
+                return; // Stop execution
+            }
+            // For other errors (like a 500), throw a generic message.
+            throw new Error(data.message || 'Could not fetch quizzes from server.');
         }
 
-        const data = await response.json();
         renderQuizList(data.quizzes);
 
     } catch (error) {
@@ -583,18 +594,22 @@ const authView = document.getElementById('authView');
 
 /**
  * The main view controller. Hides all views then shows the one requested.
- * @param {'editor' | 'auth'} viewName The name of the view to show.
+ * @param {'editor' | 'auth' | 'dashboard'} viewName The name of the view to show.
  */
 function switchView(viewName) {
     // 1. Hide all views
     editorView.style.display = 'none';
     authView.style.display = 'none';
+    dashboardView.style.display = 'none';
 
     // 2. Show the requested view
     if (viewName === 'editor') {
         editorView.style.display = 'block';
     } else if (viewName === 'auth') {
         authView.style.display = 'block';
+    }
+    else if (viewName === 'dashboard') {
+        dashboardView.style.display = 'block';
     }
 }
 
@@ -642,12 +657,17 @@ function handleLogout() {
 
 // --------------- EVENT LISTENERS ---------------\n
 function bindEventListeners() {
-    // Original Listeners
+    // Editor View Listeners
     DOM.addQuestionBtn.addEventListener('click', addQuestion);
-    const newQuizBtn = document.getElementById('newQuizBtn');
-    if(newQuizBtn) newQuizBtn.addEventListener('click', handleNewQuiz);
+    DOM.quizTitleInput.addEventListener('input', () => { updateSaveButtonState(); });
+    saveQuizBtn.addEventListener('click', handleSaveQuiz);
+    backToDashboardBtn.addEventListener('click', () => {
+        if(confirm("Are you sure? Any unsaved changes will be lost.")) {
+            initializeApp(); // Go back to the main router
+        }
+    });
 
-    DOM.previewQuestionSelect.addEventListener('change', () => updateQuestionPreview());
+    // Editor Question Block Listeners
     DOM.questionsContainer.addEventListener('click', (event) => {
         if (event.target.closest('.remove-question-btn')) removeQuestion(event.target.closest('.remove-question-btn'));
         if (event.target.closest('.add-option-btn')) addOption(event.target.closest('.add-option-btn'));
@@ -659,20 +679,13 @@ function bindEventListeners() {
     DOM.questionsContainer.addEventListener('input', (event) => {
         if (event.target.closest('.question-block')) handleQuestionBlockInput(event);
     });
-    DOM.quizTitleInput.addEventListener('input', () => { updateSaveButtonState(); });
 
-    saveQuizBtn.addEventListener('click', handleSaveQuiz);
-    backToDashboardBtn.addEventListener('click', () => {
-        if(confirm("Are you sure? Any unsaved changes will be lost.")) {
-            switchView('dashboard');
-            loadUserQuizzes(); // Refresh the list
-        }
-    });
-
+    // Dashboard View Listeners
     createNewQuizBtn.addEventListener('click', handleCreateNewQuiz);
     logoutBtnDashboard.addEventListener('click', handleLogout);
     aiGenerateBtnDashboard.addEventListener('click', openAiModal);
 
+    // Dynamic 'Edit' button listener
     document.body.addEventListener('click', async (event) => {
         if (event.target.closest('.load-quiz-btn')) {
             const quizId = event.target.closest('.load-quiz-btn').dataset.quizId;
@@ -680,20 +693,12 @@ function bindEventListeners() {
             const data = await response.json();
             if (data.success) {
                 resetEditorState();
-                // The /api/load-quiz endpoint returns the 'quiz_data' field directly.
-                const loadedQuestions = data.quiz; // This is the array of questions
-                const quizTitle = DOM.quizTitleInput.value; // The title is not returned by this endpoint, we get it from the list. We need to find it.
-
-                // Let's find the title from the quiz list in the DOM to populate the editor
+                const loadedQuestions = data.quiz;
                 const quizItem = event.target.closest('.quiz-item');
                 const titleElement = quizItem.querySelector('.quiz-item-title');
                 DOM.quizTitleInput.value = titleElement ? titleElement.textContent : 'Loaded Quiz';
-
                 DataManager.setAllQuestions(loadedQuestions);
-                // Re-render the editor from the loaded data
-                loadedQuestions.forEach(q => {
-                    UIRenderer.renderQuestionBlock(q);
-                });
+                loadedQuestions.forEach(q => UIRenderer.renderQuestionBlock(q));
                 updateSaveButtonState();
                 updatePreviewSelectDropdown();
                 switchView('editor');
@@ -702,28 +707,39 @@ function bindEventListeners() {
             }
         }
     });
-    // --- AI & Auth Modal Listeners ---
-    if (aiGenerateBtn) aiGenerateBtn.addEventListener('click', openAiModal);
+
+    // Auth View Listeners
+    if (loginBtn) loginBtn.addEventListener('click', handleLogin);
+    if (registerBtn) registerBtn.addEventListener('click', handleRegister);
+
+    // AI Modal Listeners
     if (closeAiModalBtn) closeAiModalBtn.addEventListener('click', closeAiModal);
     if (aiModal) aiModal.addEventListener('click', (e) => { if (e.target === aiModal) closeAiModal(); });
     if (generateQuestionsBtn) generateQuestionsBtn.addEventListener('click', handleGenerateQuestions);
-    if (loginBtn) loginBtn.addEventListener('click', handleLogin);
-    if (registerBtn) registerBtn.addEventListener('click', handleRegister);
 }
+
+// This is the single entry point when the page loads.
+document.addEventListener('DOMContentLoaded', () => {
+    console.log("Editor DOM fully loaded. Binding event listeners and initializing app...");
+    bindEventListeners();
+    initializeApp();
+});
 
 // --------------- INITIALIZATION ---------------\\
 
 function initializeApp() {
     console.log("Running app initialization...");
-    updateLoginStateUI(); // Always update logout button visibility
+    updateLoginStateUI(); // Set logout button visibility
 
-    if (isLoggedIn()) {
-        console.log("User is logged in. Showing editor view.");
-        // User is logged in. Show the editor.
+    const token = localStorage.getItem('jwt_token');
+
+    // This is the main router for the application.
+    if (token) {
+        console.log("User is logged in. Showing DASHBOARD view.");
         switchView('dashboard');
-        loadUserQuizzes();
+        // Pass the retrieved token directly into the function that needs it.
+        loadUserQuizzes(token);
     } else {
-        // User is not logged in. Show the login screen.
         console.log("User is not logged in. Showing auth view.");
         switchView('auth');
     }

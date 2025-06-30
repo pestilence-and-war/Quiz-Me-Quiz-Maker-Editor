@@ -10,7 +10,7 @@ const UIRenderer = (function() {
     const DOM = {
         questionsContainer: document.getElementById('questionsContainer'),
         addQuestionBtn: document.getElementById('addQuestionBtn'), // Add button reference here
-        downloadQuizBtn: document.getElementById('downloadQuizBtn'),
+        saveQuizBtn: document.getElementById('saveQuizBtn'),
         previewQuestionSelect: document.getElementById('previewQuestionSelect'),
         questionPreviewArea: document.getElementById('questionPreviewArea'),
         quizTitleInput: document.getElementById('quizTitle'),
@@ -457,7 +457,9 @@ const UIRenderer = (function() {
 
     // Function to update the enabled/disabled state of the save button
     function updateSaveButtonState(isValid) {
-        DOM.downloadQuizBtn.disabled = !isValid;
+        if (DOM.saveQuizBtn) {
+            DOM.saveQuizBtn.disabled = !isValid;
+        }
     }
 
     // Public API
