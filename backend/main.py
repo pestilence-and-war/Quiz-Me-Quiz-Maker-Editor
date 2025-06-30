@@ -413,14 +413,26 @@ def generate_questions():
 @jwt_required()
 def get_user_quizzes():
     """Returns a list of quizzes owned by the logged-in user."""
-    current_user_id = get_jwt_identity()
-    quizzes = Quiz.query.filter_by(user_id=current_user_id).order_by(Quiz.created_at.desc()).all()
-    
-    # We only need to return the id and title for the dashboard list
-    quiz_list = [{"id": q.id, "title": q.title, "created_at": q.created_at.isoformat()} for q in quizzes]
-    
-    return jsonify({"success": True, "quizzes": quiz_list})
+    try:
+        current_user_id_str = get_jwt_identity()
+        # THE FIX: Explicitly convert the string ID from the token to an integer.
+        user_id = int(current_user_id_str)
 
+        app.logger.info(f"Fetching quizzes for user_id: {user_id}")
+        
+        # This query now safely compares an integer column to an integer variable.
+        quizzes = Quiz.query.filter_by(user_id=user_id).order_by(Quiz.created_at.desc()).all()
+
+        quiz_list = [{"id": q.id, "title": q.title, "created_at": q.created_at.isoformat()} for q in quizzes]
+        
+        app.logger.info(f"Successfully found {len(quiz_list)} quizzes for user_id: {user_id}")
+        return jsonify({"success": True, "quizzes": quiz_list})
+
+    except Exception as e:
+        # This logging is critical for catching any other future errors.
+        app.logger.error(f"Error fetching quizzes for user identity {get_jwt_identity()}: {e}", exc_info=True)
+        return jsonify({"success": False, "message": "A server error occurred while fetching your quizzes."}), 500
+    
 @app.route('/api/save-quiz', methods=['POST'])
 @jwt_required()
 def save_quiz():
