@@ -38,6 +38,7 @@ const aiGenerateBtnDashboard = document.getElementById('aiGenerateBtnDashboard')
 // --- Renamed/Repurposed Elements ---
 const saveQuizBtn = document.getElementById('saveQuizBtn');
 const quizCodeDisplay = document.getElementById('quizCodeDisplay');
+const aiGenerateBtnEditor = document.getElementById('aiGenerateBtnEditor');
 
 const API_BASE_URL = 'https://quiz-backend-613338700440.us-central1.run.app';
 
@@ -685,6 +686,8 @@ function bindEventListeners() {
     logoutBtnDashboard.addEventListener('click', handleLogout);
     aiGenerateBtnDashboard.addEventListener('click', openAiModal);
 
+    if (aiGenerateBtnEditor) aiGenerateBtnEditor.addEventListener('click', openAiModal);
+    
     // Dynamic 'Edit' button listener
     document.body.addEventListener('click', async (event) => {
         if (event.target.closest('.load-quiz-btn')) {
