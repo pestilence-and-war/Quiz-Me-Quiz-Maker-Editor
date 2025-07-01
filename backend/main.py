@@ -498,6 +498,82 @@ def start_quiz_session():
         app.logger.error(f"Error starting quiz session: {e}")
         return jsonify({"success": False, "message": "Could not start quiz session."}), 500
 
+# --- Quiz player functionality ---
+@app.route('/api/quiz-session/<string:session_id>/submit', methods=['POST'])
+def submit_quiz_results():
+    """Receives a student's final answers, calculates score, and updates the TestAttempt record."""
+    data = request.get_json()
+    session_id = data.get('session_id')
+    user_answers = data.get('user_answers') # Expecting the full answer list from the player
+
+    if not session_id or not user_answers:
+        return jsonify({"success": False, "message": "Session ID and answers are required."}), 400
+
+    attempt = TestAttempt.query.get(session_id)
+    if not attempt:
+        return jsonify({"success": False, "message": "Invalid session ID."}), 404
+    
+    quiz = Quiz.query.get(attempt.quiz_id)
+    if not quiz:
+        return jsonify({"success": False, "message": "Associated quiz not found."}), 404
+
+    # --- Server-Side Score Calculation ---
+    correct_count = 0
+    total_questions = len(quiz.quiz_data)
+    
+    # Create a quick lookup for correct answers
+    correct_answers_map = {q['id']: q['answer'] for q in quiz.quiz_data}
+    
+    for answer in user_answers:
+        question_id = answer['question']['questionId']
+        correct_answer = correct_answers_map.get(question_id)
+        
+        # A simple is_correct check (can be expanded to be more robust)
+        # This is a basic example; a real one would reuse logic from your TestManager
+        if str(answer['userAnswer']) == str(correct_answer):
+             correct_count += 1
+    
+    final_score = (correct_count / total_questions) * 100 if total_questions > 0 else 0
+    
+    try:
+        attempt.status = 'completed'
+        attempt.score = int(final_score)
+        attempt.results_data = user_answers # Save the full submission
+        attempt.completed_at = datetime.utcnow()
+        db.session.commit()
+        
+        app.logger.info(f"Session {session_id} completed by {attempt.player_name} with score {final_score}")
+        return jsonify({"success": True, "message": "Results submitted successfully."})
+        
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error submitting results for session {session_id}: {e}")
+        return jsonify({"success": False, "message": "Could not save results to database."}), 500
+
+
+@app.route('/api/quiz/<string:quiz_id>/attempts', methods=['GET'])
+@jwt_required() # Only the logged-in teacher can see this
+def get_quiz_attempts(quiz_id):
+    """Returns all test attempts for a given quiz, for the teacher's dashboard."""
+    # Security check: Ensure the quiz belongs to the logged-in user
+    user_id = get_jwt_identity()
+    quiz = Quiz.query.filter_by(id=quiz_id, user_id=user_id).first()
+    if not quiz:
+        return jsonify({"success": False, "message": "Quiz not found or you do not have permission to view it."}), 404
+        
+    attempts = TestAttempt.query.filter_by(quiz_id=quiz_id).order_by(TestAttempt.started_at.desc()).all()
+    
+    attempts_list = [{
+        "session_id": a.id,
+        "player_name": a.player_name,
+        "status": a.status,
+        "score": a.score,
+        "started_at": a.started_at.isoformat(),
+        "completed_at": a.completed_at.isoformat() if a.completed_at else None
+    } for a in attempts]
+    
+    return jsonify({"success": True, "attempts": attempts_list})
+
 # --- Server Execution ---
 if __name__ == '__main__':
     with app.app_context():
