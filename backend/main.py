@@ -467,8 +467,10 @@ def load_quiz(quiz_code):
     if not quiz:
         return jsonify({"success": False, "message": "Quiz not found"}), 404
     
+    payload = {"title": quiz.title, "questions": quiz.quiz_data}
+
     # Return the actual JSON data stored in the quiz_data column
-    return jsonify({"success": True, "quiz": quiz.quiz_data})
+    return jsonify({"success": True, "quiz": payload})
 
 @app.route('/api/quiz-session/start', methods=['POST'])
 def start_quiz_session():
