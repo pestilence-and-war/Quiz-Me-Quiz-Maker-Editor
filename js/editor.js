@@ -290,9 +290,15 @@ function openAiModal() {
     if (!isLoggedIn()) {
         authError.textContent = '';
         authError.style.display = 'none';
-        authModal.classList.add('active');
+        switchView('auth');
         return;
     }
+
+    if (editorView.style.display === 'none') {
+        console.log("AI generation requested from a non-editor view. Switching to a new editor session.");
+        handleCreateNewQuiz();
+    }
+
     aiDocInput.value = '';
     aiGenerationForm.style.display = 'block';
     aiLoadingSpinner.style.display = 'none';
@@ -664,7 +670,15 @@ function bindEventListeners() {
     saveQuizBtn.addEventListener('click', handleSaveQuiz);
     backToDashboardBtn.addEventListener('click', () => {
         if(confirm("Are you sure? Any unsaved changes will be lost.")) {
-            initializeApp(); // Go back to the main router
+            // Don't re-initialize the whole app. Just switch the view and load data.
+            const token = localStorage.getItem('jwt_token');
+            switchView('dashboard');
+            if (token) {
+                loadUserQuizzes(token);
+            } else {
+                // If token is somehow gone, the main init logic is better.
+                initializeApp();
+            }
         }
     });
 
@@ -680,6 +694,7 @@ function bindEventListeners() {
     DOM.questionsContainer.addEventListener('input', (event) => {
         if (event.target.closest('.question-block')) handleQuestionBlockInput(event);
     });
+    DOM.previewQuestionSelect.addEventListener('change', () => updateQuestionPreview());
 
     // Dashboard View Listeners
     createNewQuizBtn.addEventListener('click', handleCreateNewQuiz);
@@ -687,7 +702,7 @@ function bindEventListeners() {
     aiGenerateBtnDashboard.addEventListener('click', openAiModal);
 
     if (aiGenerateBtnEditor) aiGenerateBtnEditor.addEventListener('click', openAiModal);
-    
+
     // Dynamic 'Edit' button listener
     document.body.addEventListener('click', async (event) => {
         if (event.target.closest('.load-quiz-btn')) {

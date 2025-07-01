@@ -580,15 +580,24 @@ button:disabled {
     }
 
     .quiz-preview-area .hint-icon::before {
-        left: 0;
-        transform: translateX(0%) translateY(-10px);
-        white-space: normal;
-        width: 150px;
+        /* Change positioning strategy for small screens */
+        left: auto; /* Unset the left property */
+        right: 0;   /* Align the tooltip's right edge with the icon's right edge */
+        
+        /* Unset the old transform and use a new one */
+        transform: translateY(-10px); 
+
+        /* Allow text to wrap and constrain the width */
+        white-space: normal; /* Allow text to wrap */
+        width: 200px;        /* Give it a bit more width */
+        max-width: 80vw;     /* But ensure it's never wider than the screen */
     }
 
     .quiz-preview-area .hint-icon::after {
-        left: 10px;
-        transform: translateX(-50%) translateY(-4px);
+        /* Reposition the tooltip's arrow to align with the new right-aligned position */
+        left: auto; /* Unset the left property */
+        right: 10px; /* Position it 10px from the right edge of the icon */
+        transform: translateY(-4px); /* Remove the horizontal transform */
     }
 
     .preview-controls {
