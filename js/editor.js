@@ -762,9 +762,3 @@ function initializeApp() {
         switchView('auth');
     }
 }
-
-document.addEventListener('DOMContentLoaded', () => {
-    console.log("Editor DOM fully loaded. Binding event listeners and initializing...");
-    bindEventListeners();
-    initializeApp(); // Run the main app logic
-});

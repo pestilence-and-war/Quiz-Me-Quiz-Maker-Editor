@@ -9,3 +9,5 @@ __pycache__/
 project_context_structured.json
 build_code_json.py
 init_db.py
+build_code_db.py
+project_context.db

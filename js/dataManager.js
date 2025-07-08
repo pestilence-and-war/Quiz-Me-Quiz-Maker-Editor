@@ -102,7 +102,7 @@ const DataManager = (function() {
         // Reset the counter based on the maximum ID number found in the loaded questions
         // This ensures that newly generated IDs won't conflict with loaded ones.
         questionIdCounter = questions.reduce((max, q) => {
-             const match = q && q.id ? String(q.id).match(/^q_(\\d+)$/) : null;
+             const match = q && q.id ? String(q.id).match(/^q_(\d+)$/) : null;
              const idNumber = match ? parseInt(match[1]) : 0;
              return !isNaN(idNumber) ? Math.max(max, idNumber) : max;
         }, 0);
