@@ -11,3 +11,6 @@ build_code_json.py
 init_db.py
 build_code_db.py
 project_context.db
+
+# Backend removal for SPA hosting on github pages
+backend/
